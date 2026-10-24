@@ -2,8 +2,8 @@ package handler
 
 import (
 	"fmt"
-	"runtime/debug"
 	"net/http"
+	"runtime/debug"
 )
 
 func HandleServiceInfo(w http.ResponseWriter, req *http.Request) {
@@ -23,9 +23,14 @@ func HandleServiceInfo(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	rev := vcsRevision
+	if len(rev) > 8 {
+		rev = rev[:8]
+	}
+
 	fmt.Fprintln(w,
 		"Go Version:", info.GoVersion,
-		"Build Version:", vcsRevision[:8],
+		"Build Version:", rev,
 		"Build Time:", vcsTime)
 
 }

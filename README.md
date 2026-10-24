@@ -27,9 +27,14 @@ docker compose exec postgres psql -U postgres -d api_server_db -c '\dt'
 docker compose exec postgres psql -U postgres -d api_server_db -c 'SELECT * FROM lists'
 ```
 
-## Resuests
+## Requests
 ```bash
 curl -X POST  -H "Content-Type: application/json" localhost:8090/v1/lists -d '{"name":"покупки"}'
 curl -X POST  -H "Content-Type: application/json" localhost:8090/v1/tasks -d '{"title":"купить молоко", "list_id": "fe309137-84b2-4d15-8962-5a659f025549"}'
 curl -X GET  localhost:8090/v1/lists/fe309137-84b2-4d15-8962-5a659f025549
+```
+## Building prod
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+docker compose -f docker-compose.prod.yml --env-file .env.prod ps -a
 ```
