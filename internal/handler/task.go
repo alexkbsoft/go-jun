@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -106,27 +107,51 @@ func HandleUpdateTask(db *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		taskID := req.PathValue("task_id")
-		cmd := `UPDATE tasks SET title = $1, done = $2 WHERE id = $3`
-		if _, err := db.Exec(req.Context(), cmd, reqData.Title, reqData.Done, taskID); err != nil {
+		cmd := `UPDATE tasks SET title = $1, done = $2 WHERE id = $3 RETURNING id, list_id, title, done, created_at`
+		var task Task
+		if err := db.QueryRow(req.Context(), cmd, reqData.Title, reqData.Done, taskID).Scan(
+			&task.ID, &task.ListID, &task.Title, &task.Done, &task.CreatedAt,
+		); err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Task not found", http.StatusNotFound)
+				return
+			}
 			http.Error(w, "Failed to update task", http.StatusInternalServerError)
 			slog.Error("Failed to update task:", slog.String("error", err.Error()))
 			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(task); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+			slog.Error("Failed to encode response:", slog.String("error", err.Error()))
+			return
+		}
 	}
 }
 
 func HandleDeleteTask(db *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		taskID := req.PathValue("task_id")
-		cmd := `DELETE FROM tasks WHERE id = $1`
-		if _, err := db.Exec(req.Context(), cmd, taskID); err != nil {
+		cmd := `DELETE FROM tasks WHERE id = $1 RETURNING id, list_id, title, done, created_at`
+		var task Task
+		if err := db.QueryRow(req.Context(), cmd, taskID).Scan(
+			&task.ID, &task.ListID, &task.Title, &task.Done, &task.CreatedAt,
+		); err != nil {
+			if err == pgx.ErrNoRows {
+				http.Error(w, "Task not found", http.StatusNotFound)
+				return
+			}
 			http.Error(w, "Failed to delete task", http.StatusInternalServerError)
 			slog.Error("Failed to delete task:", slog.String("error", err.Error()))
 			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(task); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+			slog.Error("Failed to encode response:", slog.String("error", err.Error()))
+			return
+		}
 	}
 }
