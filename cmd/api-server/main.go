@@ -1,40 +1,37 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"net/http"
-	"runtime/debug"
+	"os"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/alexkbsoft/go-jun/internal/handler"
 )
 
 const PORT = ":8090"
 
 func main() {
-	http.HandleFunc("/debug/info", handleServiceInfo)
+	dbURL := os.Getenv("API_SERVER_DB_URL")
+	if dbURL == "" {
+		log.Fatal("API_SERVER_DB_URL is not set")
+		os.Exit(1)
+	}
+
+	db, err := pgxpool.New(context.Background(), dbURL)
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	mux := http.NewServeMux()
+	// Вызываем вынесенную регистрацию маршрутов
+	handler.RegisterRoutes(mux, db)
 
 	fmt.Println("Server started on", PORT)
-	http.ListenAndServe(PORT, nil)
-}
-
-func handleServiceInfo(w http.ResponseWriter, req *http.Request) {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		fmt.Fprintf(w, "Не удалось прочитать информацию о сборке")
-		return
-	}
-
-	var vcsRevision, vcsTime string
-	for _, setting := range info.Settings {
-		switch setting.Key {
-		case "vcs.revision":
-			vcsRevision = setting.Value
-		case "vcs.time":
-			vcsTime = setting.Value
-		}
-	}
-
-	fmt.Fprintln(w,
-		"Go Version:", info.GoVersion,
-		"Build Version:", vcsRevision[:8],
-		"Build Time:", vcsTime)
-
+	http.ListenAndServe(PORT, mux)
 }
