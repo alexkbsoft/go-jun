@@ -41,5 +41,6 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod ps -a
 ## Зайти внутрь работающего контейнера
 ```bash
 docker exec -it -u 0 tasklist-prod-api-1 sh
+docker compose exec postgres psql -U postgres -d api_server_db
 ```
 -u 0 - открыть суперюзером
