@@ -46,9 +46,9 @@ func (a *App) GetLists(ctx context.Context) ([]models.List, error) {
 	return a.store.GetLists(ctx)
 }
 
-func (a *App) CreateTask(ctx context.Context, id string, listId string, title string, done bool) (models.Task, error) {
+func (a *App) CreateTask(ctx context.Context, listId string, title string, done bool) (models.Task, error) {
 	task := models.Task{
-		ID:        id,
+		ID:        uuid.New().String(),
 		Title:     title,
 		Done:      done,
 		ListID:    listId,

@@ -8,12 +8,11 @@ import (
 
 	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/app"
 	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/models"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
 type Task struct {
-	ID        string    `json:"name"`
+	ID        string    `json:"id"`
 	ListID    string    `json:"listId"`
 	Title     string    `json:"title"`
 	Done      bool      `json:"done"`
@@ -32,26 +31,23 @@ func HandleCreateTask(a *app.App) http.HandlerFunc {
 		}
 
 		listID := req.PathValue("list_id")
-		taskID := uuid.New().String()
 
-		var taskJson struct {
-			task Task
-		}
-		task, err := a.CreateTask(req.Context(), taskID, listID, reqData.Title, false)
+		task, err := a.CreateTask(req.Context(), listID, reqData.Title, false)
 		if err != nil {
 			http.Error(w, "Failed to create task", http.StatusInternalServerError)
 			slog.Error("Failed to create task:", slog.String("error", err.Error()))
 			return
 		}
 
-		taskJson.task.ID = task.ID
-		taskJson.task.Title = task.Title
-		taskJson.task.ListID = task.ListID
-		taskJson.task.Done = task.Done
-		taskJson.task.CreatedAt = task.CreatedAt
+		var respTask Task
+		respTask.ID = task.ID
+		respTask.Title = task.Title
+		respTask.ListID = task.ListID
+		respTask.Done = task.Done
+		respTask.CreatedAt = task.CreatedAt
 
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(taskJson); err != nil {
+		if err := json.NewEncoder(w).Encode(respTask); err != nil {
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			slog.Error("Failed to encode response:", slog.String("error", err.Error()))
 			return
@@ -70,8 +66,25 @@ func HandleGetTasks(a *app.App) http.HandlerFunc {
 			return
 		}
 
+		var tasksJson []Task
+
+		for _, l := range tasks {
+			tasksJson = append(tasksJson, Task{
+				ID:        l.ID,
+				Title:     l.Title,
+				ListID:    l.ListID,
+				Done:      l.Done,
+				CreatedAt: l.CreatedAt,
+			})
+		}
+
+		var respData struct {
+			Tasks []Task `json:"tasks"`
+		}
+		respData.Tasks = tasksJson
+
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string][]models.Task{"tasks": tasks}); err != nil {
+		if err := json.NewEncoder(w).Encode(respData); err != nil {
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			slog.Error("Failed to encode response:", slog.String("error", err.Error()))
 			return
@@ -82,8 +95,8 @@ func HandleGetTasks(a *app.App) http.HandlerFunc {
 func HandleUpdateTask(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		var reqData struct {
-			Title string `json:"title"`
-			Done  bool   `json:"done"`
+			Title string `json:"title,omitempty"`
+			Done  *bool  `json:"done,omitempty"`
 		}
 
 		if err := json.NewDecoder(req.Body).Decode(&reqData); err != nil {
@@ -96,7 +109,7 @@ func HandleUpdateTask(a *app.App) http.HandlerFunc {
 		task := models.Task{
 			ID:    taskID,
 			Title: reqData.Title,
-			Done:  reqData.Done,
+			Done:  reqData.Done != nil && *reqData.Done,
 		}
 
 		updatedTask, err := a.UpdateTask(req.Context(), task)
@@ -110,8 +123,15 @@ func HandleUpdateTask(a *app.App) http.HandlerFunc {
 			return
 		}
 
+		var respTask Task
+		respTask.ID = updatedTask.ID
+		respTask.Title = updatedTask.Title
+		respTask.ListID = updatedTask.ListID
+		respTask.Done = updatedTask.Done
+		respTask.CreatedAt = updatedTask.CreatedAt
+
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(updatedTask); err != nil {
+		if err := json.NewEncoder(w).Encode(respTask); err != nil {
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			slog.Error("Failed to encode response:", slog.String("error", err.Error()))
 			return

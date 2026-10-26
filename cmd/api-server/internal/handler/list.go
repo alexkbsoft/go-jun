@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -43,11 +42,9 @@ func HandleCreateList(a *app.App) http.HandlerFunc {
 			return
 		}
 
-		var respData struct {
-			List List `json:"list"`
-		}
-		respData.List.ID = list.ID
-		respData.List.Name = list.Name
+		var respData List
+		respData.ID = list.ID
+		respData.Name = list.Name
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(respData); err != nil {
@@ -56,8 +53,7 @@ func HandleCreateList(a *app.App) http.HandlerFunc {
 			return
 		}
 
-		// Здесь вы можете добавить логику для обработки создания списка
-		fmt.Fprintln(w, "Создание списка успешно")
+
 	}
 }
 
