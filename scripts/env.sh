@@ -45,8 +45,9 @@ backup() {
 web_publish() {
   local tmp
   tmp=$(mktemp -d)
+  chmod 755 "$tmp"
   docker build -f Dockerfile.web --target dist --output "type=local,dest=$tmp" .
-  rsync -a --delete "$tmp"/ "$WEB_DIR"/
+  rsync -a --delete --chmod=D755,F644 "$tmp"/ "$WEB_DIR"/
   rm -rf "$tmp"
   echo "Фронтенд выложен в $WEB_DIR"
 }
