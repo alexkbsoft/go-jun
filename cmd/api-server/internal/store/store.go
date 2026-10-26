@@ -93,9 +93,23 @@ func (s *Store) GetTasks(ctx context.Context, listID string) ([]models.Task, err
 }
 
 func (s *Store) UpdateTask(ctx context.Context, t models.Task) (models.Task, error) {
+	// Сначала загружаем существующую задачу, чтобы сохранить title при обновлении только done
+	var existing models.Task
+	err := s.db.QueryRow(ctx, `SELECT id, list_id, title, done, created_at FROM tasks WHERE id = $1`, t.ID).Scan(
+		&existing.ID, &existing.ListID, &existing.Title, &existing.Done, &existing.CreatedAt,
+	)
+	if err != nil {
+		return models.Task{}, err
+	}
+
+	title := t.Title
+	if title == "" {
+		title = existing.Title
+	}
+
 	cmd := `UPDATE tasks SET title = $1, done = $2 WHERE id = $3 RETURNING id, list_id, title, done, created_at`
 	var task models.Task
-	err := s.db.QueryRow(ctx, cmd, t.Title, t.Done, t.ID).Scan(
+	err = s.db.QueryRow(ctx, cmd, title, t.Done, t.ID).Scan(
 		&task.ID, &task.ListID, &task.Title, &task.Done, &task.CreatedAt,
 	)
 	if err != nil {

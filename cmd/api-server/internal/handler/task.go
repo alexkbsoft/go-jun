@@ -95,8 +95,8 @@ func HandleGetTasks(a *app.App) http.HandlerFunc {
 func HandleUpdateTask(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		var reqData struct {
-			Title string `json:"title,omitempty"`
-			Done  *bool  `json:"done,omitempty"`
+			Title *string `json:"title,omitempty"`
+			Done  *bool   `json:"done,omitempty"`
 		}
 
 		if err := json.NewDecoder(req.Body).Decode(&reqData); err != nil {
@@ -108,8 +108,11 @@ func HandleUpdateTask(a *app.App) http.HandlerFunc {
 
 		task := models.Task{
 			ID:    taskID,
-			Title: reqData.Title,
+			Title: "",
 			Done:  reqData.Done != nil && *reqData.Done,
+		}
+		if reqData.Title != nil {
+			task.Title = *reqData.Title
 		}
 
 		updatedTask, err := a.UpdateTask(req.Context(), task)

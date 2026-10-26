@@ -1,3 +1,5 @@
 .env
 .env.prodbackups/
 .env.prod
+bin/
+.gigacode_vsc
