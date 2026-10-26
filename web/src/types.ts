@@ -5,10 +5,10 @@ export interface List {
 
 export interface Task {
   id: string;
-  list_id: string;
+  listId: string;
   title: string;
   done: boolean;
-  created_at: string;
+  createdAt: string;
 }
 
 export interface ListsResponse {

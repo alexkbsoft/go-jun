@@ -9,3 +9,8 @@ type Task struct {
 	Done      bool
 	CreatedAt time.Time
 }
+
+type TaskPatch struct {
+	Title *string
+	Done  *bool
+}

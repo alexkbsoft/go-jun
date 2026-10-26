@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 	"uuid"
 
@@ -14,7 +16,7 @@ type store interface {
 	GetLists(ctx context.Context) ([]models.List, error)
 	CreateTask(ctx context.Context, t models.Task) error
 	GetTasks(ctx context.Context, listID string) ([]models.Task, error)
-	UpdateTask(ctx context.Context, t models.Task) (models.Task, error)
+	UpdateTask(ctx context.Context, id string, p models.TaskPatch) (models.Task, error)
 	DeleteTask(ctx context.Context, taskID string) (models.Task, error)
 }
 
@@ -60,8 +62,14 @@ func (a *App) CreateTask(ctx context.Context, listId string, title string, done 
 func (a *App) GetTasks(ctx context.Context, listID string) ([]models.Task, error) {
 	return a.store.GetTasks(ctx, listID)
 }
-func (a *App) UpdateTask(ctx context.Context, t models.Task) (models.Task, error) {
-	return a.store.UpdateTask(ctx, t)
+func (a *App) UpdateTask(ctx context.Context, id string, p models.TaskPatch) (models.Task, error) {
+	if p.Title == nil && p.Done == nil {
+		return models.Task{}, fmt.Errorf("%w: nothing to update", models.ErrInvalid)
+	}
+	if p.Title != nil && strings.TrimSpace(*p.Title) == "" {
+		return models.Task{}, fmt.Errorf("%w: title must not be empty", models.ErrInvalid)
+	}
+	return a.store.UpdateTask(ctx, id, p)
 }
 
 func (a *App) DeleteTask(ctx context.Context, taskID string) (models.Task, error) {

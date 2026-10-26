@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -95,43 +96,35 @@ func HandleGetTasks(a *app.App) http.HandlerFunc {
 func HandleUpdateTask(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		var reqData struct {
-			Title *string `json:"title,omitempty"`
-			Done  *bool   `json:"done,omitempty"`
+			Title *string `json:"title"`
+			Done  *bool   `json:"done"`
 		}
-
 		if err := json.NewDecoder(req.Body).Decode(&reqData); err != nil {
 			http.Error(w, "Invalid JSON body", http.StatusBadRequest)
 			return
 		}
 
-		taskID := req.PathValue("task_id")
-
-		task := models.Task{
-			ID:    taskID,
-			Title: "",
-			Done:  reqData.Done != nil && *reqData.Done,
-		}
-		if reqData.Title != nil {
-			task.Title = *reqData.Title
-		}
-
-		updatedTask, err := a.UpdateTask(req.Context(), task)
-		if err != nil {
-			if err == pgx.ErrNoRows {
-				http.Error(w, "Task not found", http.StatusNotFound)
-				return
-			}
+		task, err := a.UpdateTask(req.Context(), req.PathValue("task_id"),
+			models.TaskPatch{Title: reqData.Title, Done: reqData.Done})
+		switch {
+		case errors.Is(err, models.ErrInvalid):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		case errors.Is(err, models.ErrNotFound):
+			http.Error(w, "Task not found", http.StatusNotFound)
+			return
+		case err != nil:
+			slog.Error("Failed to update task", slog.String("error", err.Error()))
 			http.Error(w, "Failed to update task", http.StatusInternalServerError)
-			slog.Error("Failed to update task:", slog.String("error", err.Error()))
 			return
 		}
 
 		var respTask Task
-		respTask.ID = updatedTask.ID
-		respTask.Title = updatedTask.Title
-		respTask.ListID = updatedTask.ListID
-		respTask.Done = updatedTask.Done
-		respTask.CreatedAt = updatedTask.CreatedAt
+		respTask.ID = task.ID
+		respTask.Title = task.Title
+		respTask.ListID = task.ListID
+		respTask.Done = task.Done
+		respTask.CreatedAt = task.CreatedAt
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(respTask); err != nil {
@@ -157,8 +150,15 @@ func HandleDeleteTask(a *app.App) http.HandlerFunc {
 			return
 		}
 
+		var respTask Task
+		respTask.ID = deletedTask.ID
+		respTask.Title = deletedTask.Title
+		respTask.ListID = deletedTask.ListID
+		respTask.Done = deletedTask.Done
+		respTask.CreatedAt = deletedTask.CreatedAt
+
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(deletedTask); err != nil {
+		if err := json.NewEncoder(w).Encode(respTask); err != nil {
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			slog.Error("Failed to encode response:", slog.String("error", err.Error()))
 			return

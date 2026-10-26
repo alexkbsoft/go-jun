@@ -2,8 +2,10 @@ package store
 
 import (
 	"context"
+	"errors"
 
 	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/models"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -61,13 +63,17 @@ func (s *Store) GetLists(ctx context.Context) ([]models.List, error) {
 }
 
 func (s *Store) CreateTask(ctx context.Context, t models.Task) error {
-	cmd := `INSERT INTO tasks (id, list_id, title, done, created_at) VALUES ($1, $2, $3, $4, $5)`
+	cmd := `INSERT INTO tasks (id, list_id, title, done, created_at) 
+				VALUES ($1, $2, $3, $4, $5)`
 	_, err := s.db.Exec(ctx, cmd, t.ID, t.ListID, t.Title, t.Done, t.CreatedAt)
 	return err
 }
 
 func (s *Store) GetTasks(ctx context.Context, listID string) ([]models.Task, error) {
-	cmd := `SELECT id, list_id, title, done, created_at FROM tasks WHERE list_id = $1`
+	cmd := `SELECT id, list_id, title, done, created_at 
+				FROM tasks 
+				WHERE list_id = $1
+				ORDER BY created_at, id`
 	rows, err := s.db.Query(ctx, cmd, listID)
 	if err != nil {
 		return nil, err
@@ -92,30 +98,21 @@ func (s *Store) GetTasks(ctx context.Context, listID string) ([]models.Task, err
 	return tasks, nil
 }
 
-func (s *Store) UpdateTask(ctx context.Context, t models.Task) (models.Task, error) {
-	// Сначала загружаем существующую задачу, чтобы сохранить title при обновлении только done
-	var existing models.Task
-	err := s.db.QueryRow(ctx, `SELECT id, list_id, title, done, created_at FROM tasks WHERE id = $1`, t.ID).Scan(
-		&existing.ID, &existing.ListID, &existing.Title, &existing.Done, &existing.CreatedAt,
-	)
-	if err != nil {
-		return models.Task{}, err
-	}
+func (s *Store) UpdateTask(ctx context.Context, id string, p models.TaskPatch) (models.Task, error) {
+	const cmd = `
+		UPDATE tasks
+		   SET title = COALESCE($2, title),
+		       done  = COALESCE($3, done)
+		 WHERE id = $1
+		RETURNING id, list_id, title, done, created_at`
 
-	title := t.Title
-	if title == "" {
-		title = existing.Title
+	var t models.Task
+	err := s.db.QueryRow(ctx, cmd, id, p.Title, p.Done).
+		Scan(&t.ID, &t.ListID, &t.Title, &t.Done, &t.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.Task{}, models.ErrNotFound
 	}
-
-	cmd := `UPDATE tasks SET title = $1, done = $2 WHERE id = $3 RETURNING id, list_id, title, done, created_at`
-	var task models.Task
-	err = s.db.QueryRow(ctx, cmd, title, t.Done, t.ID).Scan(
-		&task.ID, &task.ListID, &task.Title, &task.Done, &task.CreatedAt,
-	)
-	if err != nil {
-		return models.Task{}, err
-	}
-	return task, nil
+	return t, err
 }
 
 func (s *Store) DeleteTask(ctx context.Context, taskID string) (models.Task, error) {

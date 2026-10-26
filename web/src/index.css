@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url("./App.css");
+@import "tailwindcss";
 
 :root {
   --text: #6b6375;
