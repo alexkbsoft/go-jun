@@ -9,7 +9,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/alexkbsoft/go-jun/internal/handler"
+	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/handler"
+	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/store"
+	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/app"
+
 )
 
 const PORT = ":8090"
@@ -28,9 +31,12 @@ func main() {
 	}
 	defer db.Close()
 
+	store := store.New(db)
+	app := app.New(store)
+
 	mux := http.NewServeMux()
 	// Вызываем вынесенную регистрацию маршрутов
-	handler.RegisterRoutes(mux, db)
+	handler.RegisterRoutes(mux, app)
 
 	fmt.Println("Server started on", PORT)
 	http.ListenAndServe(PORT, mux)

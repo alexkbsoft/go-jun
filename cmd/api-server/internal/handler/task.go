@@ -6,20 +6,21 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/app"
+	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Task struct {
-	ID        string    `json:"id"         db:"id"`
-	ListID    string    `json:"list_id"    db:"list_id"`
-	Title     string    `json:"title"      db:"title"`
-	Done      bool      `json:"done"       db:"done"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	ID        string    `json:"name"`
+	ListID    string    `json:"listId"`
+	Title     string    `json:"title"`
+	Done      bool      `json:"done"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
-func HandleCreateTask(db *pgxpool.Pool) http.HandlerFunc {
+func HandleCreateTask(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		var reqData struct {
 			Title string `json:"title"`
@@ -32,24 +33,25 @@ func HandleCreateTask(db *pgxpool.Pool) http.HandlerFunc {
 
 		listID := req.PathValue("list_id")
 		taskID := uuid.New().String()
-		cmd := `INSERT INTO tasks (id, list_id, title, done, created_at) VALUES ($1, $2, $3, $4, $5)`
-		if _, err := db.Exec(req.Context(), cmd, taskID, listID, reqData.Title, false, time.Now()); err != nil {
+
+		var taskJson struct {
+			task Task
+		}
+		task, err := a.CreateTask(req.Context(), taskID, listID, reqData.Title, false)
+		if err != nil {
 			http.Error(w, "Failed to create task", http.StatusInternalServerError)
 			slog.Error("Failed to create task:", slog.String("error", err.Error()))
 			return
 		}
 
-		var respData struct {
-			Task Task `json:"task"`
-		}
-		respData.Task.ID = taskID
-		respData.Task.ListID = listID
-		respData.Task.Title = reqData.Title
-		respData.Task.Done = false
-		respData.Task.CreatedAt = time.Now()
+		taskJson.task.ID = task.ID
+		taskJson.task.Title = task.Title
+		taskJson.task.ListID = task.ListID
+		taskJson.task.Done = task.Done
+		taskJson.task.CreatedAt = task.CreatedAt
 
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(respData); err != nil {
+		if err := json.NewEncoder(w).Encode(taskJson); err != nil {
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			slog.Error("Failed to encode response:", slog.String("error", err.Error()))
 			return
@@ -57,36 +59,19 @@ func HandleCreateTask(db *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func HandleGetTasks(db *pgxpool.Pool) http.HandlerFunc {
+func HandleGetTasks(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		listID := req.PathValue("list_id")
-		cmd := `SELECT id, list_id, title, done, created_at FROM tasks WHERE list_id = $1`
-		rows, err := db.Query(req.Context(), cmd, listID)
+
+		tasks, err := a.GetTasks(req.Context(), listID)
 		if err != nil {
 			http.Error(w, "Failed to retrieve tasks", http.StatusInternalServerError)
 			slog.Error("Failed to retrieve tasks:", slog.String("error", err.Error()))
 			return
 		}
-		defer rows.Close()
-
-		var tasks []Task
-		for rows.Next() {
-			var task Task
-			if err := rows.Scan(&task.ID, &task.ListID, &task.Title, &task.Done, &task.CreatedAt); err != nil {
-				http.Error(w, "Failed to scan task", http.StatusInternalServerError)
-				slog.Error("Failed to scan task:", slog.String("error", err.Error()))
-				return
-			}
-			tasks = append(tasks, task)
-		}
-
-		var respData struct {
-			Tasks []Task `json:"tasks"`
-		}
-		respData.Tasks = tasks
 
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(respData); err != nil {
+		if err := json.NewEncoder(w).Encode(map[string][]models.Task{"tasks": tasks}); err != nil {
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			slog.Error("Failed to encode response:", slog.String("error", err.Error()))
 			return
@@ -94,7 +79,7 @@ func HandleGetTasks(db *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func HandleUpdateTask(db *pgxpool.Pool) http.HandlerFunc {
+func HandleUpdateTask(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		var reqData struct {
 			Title string `json:"title"`
@@ -107,11 +92,15 @@ func HandleUpdateTask(db *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		taskID := req.PathValue("task_id")
-		cmd := `UPDATE tasks SET title = $1, done = $2 WHERE id = $3 RETURNING id, list_id, title, done, created_at`
-		var task Task
-		if err := db.QueryRow(req.Context(), cmd, reqData.Title, reqData.Done, taskID).Scan(
-			&task.ID, &task.ListID, &task.Title, &task.Done, &task.CreatedAt,
-		); err != nil {
+
+		task := models.Task{
+			ID:    taskID,
+			Title: reqData.Title,
+			Done:  reqData.Done,
+		}
+
+		updatedTask, err := a.UpdateTask(req.Context(), task)
+		if err != nil {
 			if err == pgx.ErrNoRows {
 				http.Error(w, "Task not found", http.StatusNotFound)
 				return
@@ -122,7 +111,7 @@ func HandleUpdateTask(db *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(task); err != nil {
+		if err := json.NewEncoder(w).Encode(updatedTask); err != nil {
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			slog.Error("Failed to encode response:", slog.String("error", err.Error()))
 			return
@@ -130,14 +119,12 @@ func HandleUpdateTask(db *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func HandleDeleteTask(db *pgxpool.Pool) http.HandlerFunc {
+func HandleDeleteTask(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		taskID := req.PathValue("task_id")
-		cmd := `DELETE FROM tasks WHERE id = $1 RETURNING id, list_id, title, done, created_at`
-		var task Task
-		if err := db.QueryRow(req.Context(), cmd, taskID).Scan(
-			&task.ID, &task.ListID, &task.Title, &task.Done, &task.CreatedAt,
-		); err != nil {
+
+		deletedTask, err := a.DeleteTask(req.Context(), taskID)
+		if err != nil {
 			if err == pgx.ErrNoRows {
 				http.Error(w, "Task not found", http.StatusNotFound)
 				return
@@ -148,7 +135,7 @@ func HandleDeleteTask(db *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(task); err != nil {
+		if err := json.NewEncoder(w).Encode(deletedTask); err != nil {
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			slog.Error("Failed to encode response:", slog.String("error", err.Error()))
 			return

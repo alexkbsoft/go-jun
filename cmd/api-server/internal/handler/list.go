@@ -1,14 +1,13 @@
 package handler
 
 import (
-	"net/http"
-	"log/slog"
-	"github.com/jackc/pgx/v5"
-	"github.com/google/uuid"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"net/http"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/app"
+	"github.com/jackc/pgx/v5"
 )
 
 type List struct {
@@ -16,7 +15,7 @@ type List struct {
 	Name string `json:"name"`
 }
 
-func HandleCreateList(db *pgxpool.Pool) http.HandlerFunc {
+func HandleCreateList(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -37,9 +36,8 @@ func HandleCreateList(db *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		cmd := `INSERT INTO lists (id, name) VALUES ($1, $2)`
-		listID := uuid.New().String()
-		if _, err := db.Exec(req.Context(), cmd, listID, reqData.Name); err != nil {
+		list, err := a.CreateList(req.Context(), reqData.Name)
+		if err != nil {
 			http.Error(w, "Failed to create list", http.StatusInternalServerError)
 			slog.Error("Failed to create list:", slog.String("error", err.Error()))
 			return
@@ -48,8 +46,8 @@ func HandleCreateList(db *pgxpool.Pool) http.HandlerFunc {
 		var respData struct {
 			List List `json:"list"`
 		}
-		respData.List.ID = listID
-		respData.List.Name = reqData.Name
+		respData.List.ID = list.ID
+		respData.List.Name = list.Name
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(respData); err != nil {
@@ -63,7 +61,7 @@ func HandleCreateList(db *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func HandleGetList(db *pgxpool.Pool) http.HandlerFunc {
+func HandleGetList(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -71,9 +69,8 @@ func HandleGetList(db *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		listID := req.PathValue("list_id")
-		var listName string
-		cmd := `SELECT name FROM lists WHERE id = $1`
-		err := db.QueryRow(req.Context(), cmd, listID).Scan(&listName)
+
+		list, err := a.GetList(req.Context(), listID)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				http.Error(w, "List not found", http.StatusNotFound)
@@ -87,8 +84,8 @@ func HandleGetList(db *pgxpool.Pool) http.HandlerFunc {
 		var respData struct {
 			List List `json:"list"`
 		}
-		respData.List.ID = listID
-		respData.List.Name = listName
+		respData.List.ID = list.ID
+		respData.List.Name = list.Name
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(respData); err != nil {
@@ -99,44 +96,33 @@ func HandleGetList(db *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func HandleGetLists(db *pgxpool.Pool) http.HandlerFunc {
+func HandleGetLists(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		cmd := `SELECT id, name FROM lists`
-		rows, err := db.Query(req.Context(), cmd)
+		lists, err := a.GetLists(req.Context())
 		if err != nil {
 			http.Error(w, "Failed to retrieve lists", http.StatusInternalServerError)
 			slog.Error("Failed to retrieve lists:", slog.String("error", err.Error()))
 			return
 		}
-		defer rows.Close()
 
-		var lists []List
+		var listsJson []List
 
-		for rows.Next() {
-			var list List
-			if err := rows.Scan(&list.ID, &list.Name); err != nil {
-				http.Error(w, "Failed to scan list", http.StatusInternalServerError)
-				slog.Error("Failed to scan list:", slog.String("error", err.Error()))
-				return
-			}
-			lists = append(lists, list)
-		}
-
-		if err := rows.Err(); err != nil {
-			http.Error(w, "Error iterating over lists", http.StatusInternalServerError)
-			slog.Error("Error iterating over lists:", slog.String("error", err.Error()))
-			return
+		for _, l := range lists {
+			listsJson = append(listsJson, List{
+				ID:   l.ID,
+				Name: l.Name,
+			})
 		}
 
 		var respData struct {
 			Lists []List `json:"lists"`
 		}
-		respData.Lists = lists
+		respData.Lists = listsJson
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(respData); err != nil {
