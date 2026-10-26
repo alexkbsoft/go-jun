@@ -37,6 +37,8 @@ curl -X GET  localhost:8090/v1/lists/fe309137-84b2-4d15-8962-5a659f025549
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 docker compose -f docker-compose.prod.yml --env-file .env.prod ps -a
+
+ssh сервер 'cd tasklist && ./scripts/env.sh prod deploy'
 ```
 ## Зайти внутрь работающего контейнера
 ```bash
