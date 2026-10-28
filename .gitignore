@@ -3,3 +3,4 @@
 .env.prod
 bin/
 .gigacode_vsc
+.DS_Store
