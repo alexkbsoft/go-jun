@@ -1,4 +1,4 @@
-package handler
+package httpapi
 
 import (
 	"encoding/json"
@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/app"
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/models"
+	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/application"
+	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/domain"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -20,7 +20,7 @@ type Task struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-func HandleCreateTask(a *app.App) http.HandlerFunc {
+func HandleCreateTask(uc application.TaskUseCases) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		var reqData struct {
 			Title string `json:"title"`
@@ -33,7 +33,7 @@ func HandleCreateTask(a *app.App) http.HandlerFunc {
 
 		listID := req.PathValue("list_id")
 
-		task, err := a.CreateTask(req.Context(), listID, reqData.Title, false)
+		task, err := uc.CreateTask(req.Context(), listID, reqData.Title, false)
 		if err != nil {
 			http.Error(w, "Failed to create task", http.StatusInternalServerError)
 			slog.Error("Failed to create task:", slog.String("error", err.Error()))
@@ -56,11 +56,11 @@ func HandleCreateTask(a *app.App) http.HandlerFunc {
 	}
 }
 
-func HandleGetTasks(a *app.App) http.HandlerFunc {
+func HandleGetTasks(uc application.TaskUseCases) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		listID := req.PathValue("list_id")
 
-		tasks, err := a.GetTasks(req.Context(), listID)
+		tasks, err := uc.GetTasks(req.Context(), listID)
 		if err != nil {
 			http.Error(w, "Failed to retrieve tasks", http.StatusInternalServerError)
 			slog.Error("Failed to retrieve tasks:", slog.String("error", err.Error()))
@@ -93,7 +93,7 @@ func HandleGetTasks(a *app.App) http.HandlerFunc {
 	}
 }
 
-func HandleUpdateTask(a *app.App) http.HandlerFunc {
+func HandleUpdateTask(uc application.TaskUseCases) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		var reqData struct {
 			Title *string `json:"title"`
@@ -104,13 +104,13 @@ func HandleUpdateTask(a *app.App) http.HandlerFunc {
 			return
 		}
 
-		task, err := a.UpdateTask(req.Context(), req.PathValue("task_id"),
-			models.TaskPatch{Title: reqData.Title, Done: reqData.Done})
+		task, err := uc.UpdateTask(req.Context(), req.PathValue("task_id"),
+			domain.TaskPatch{Title: reqData.Title, Done: reqData.Done})
 		switch {
-		case errors.Is(err, models.ErrInvalid):
+		case errors.Is(err, domain.ErrInvalid):
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
-		case errors.Is(err, models.ErrNotFound):
+		case errors.Is(err, domain.ErrNotFound):
 			http.Error(w, "Task not found", http.StatusNotFound)
 			return
 		case err != nil:
@@ -135,11 +135,11 @@ func HandleUpdateTask(a *app.App) http.HandlerFunc {
 	}
 }
 
-func HandleDeleteTask(a *app.App) http.HandlerFunc {
+func HandleDeleteTask(uc application.TaskUseCases) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		taskID := req.PathValue("task_id")
 
-		deletedTask, err := a.DeleteTask(req.Context(), taskID)
+		deletedTask, err := uc.DeleteTask(req.Context(), taskID)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				http.Error(w, "Task not found", http.StatusNotFound)

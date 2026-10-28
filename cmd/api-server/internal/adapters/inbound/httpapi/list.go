@@ -1,12 +1,12 @@
-package handler
+package httpapi
 
 import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
 
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/app"
-	"github.com/jackc/pgx/v5"
+	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/application"
+	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/domain"
 )
 
 type List struct {
@@ -14,7 +14,7 @@ type List struct {
 	Name string `json:"name"`
 }
 
-func HandleCreateList(a *app.App) http.HandlerFunc {
+func HandleCreateList(uc application.TaskUseCases) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -35,7 +35,7 @@ func HandleCreateList(a *app.App) http.HandlerFunc {
 			return
 		}
 
-		list, err := a.CreateList(req.Context(), reqData.Name)
+		list, err := uc.CreateList(req.Context(), reqData.Name)
 		if err != nil {
 			http.Error(w, "Failed to create list", http.StatusInternalServerError)
 			slog.Error("Failed to create list:", slog.String("error", err.Error()))
@@ -57,7 +57,7 @@ func HandleCreateList(a *app.App) http.HandlerFunc {
 	}
 }
 
-func HandleGetList(a *app.App) http.HandlerFunc {
+func HandleGetList(uc application.TaskUseCases) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -66,9 +66,9 @@ func HandleGetList(a *app.App) http.HandlerFunc {
 
 		listID := req.PathValue("list_id")
 
-		list, err := a.GetList(req.Context(), listID)
+		list, err := uc.GetList(req.Context(), listID)
 		if err != nil {
-			if err == pgx.ErrNoRows {
+			if err == domain.ErrNotFound {
 				http.Error(w, "List not found", http.StatusNotFound)
 			} else {
 				http.Error(w, "Failed to retrieve list", http.StatusInternalServerError)
@@ -92,14 +92,14 @@ func HandleGetList(a *app.App) http.HandlerFunc {
 	}
 }
 
-func HandleGetLists(a *app.App) http.HandlerFunc {
+func HandleGetLists(uc application.TaskUseCases) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		lists, err := a.GetLists(req.Context())
+		lists, err := uc.GetLists(req.Context())
 		if err != nil {
 			http.Error(w, "Failed to retrieve lists", http.StatusInternalServerError)
 			slog.Error("Failed to retrieve lists:", slog.String("error", err.Error()))
