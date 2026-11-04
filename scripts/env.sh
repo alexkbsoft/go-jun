@@ -69,6 +69,7 @@ usage() {
   down              остановить контейнеры (данные остаются)
   clean             удалить контейнеры И данные базы (спросит подтверждение)
   migrate           применить миграции
+  migrate_down [n]  откатить n миграций (по умолчанию 1)
   psql [аргументы]  консоль базы, например: psql -c '\dt'
   logs [сервис]     логи
   ps                состояние контейнеров
@@ -115,8 +116,9 @@ case $cmd in
     [[ $answer == [yY] ]] || { echo "Отменено"; exit 1; }
     dc down -v
     ;;
-  migrate) dc run --rm migrate ;;
-  psql)    psql_in dc "$@" ;;
+  migrate)      dc run --rm migrate ;;
+  migrate_down) load_env; dc run --rm migrate -path /migrations -database "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable" down "${1:-1}" ;;
+  psql)         psql_in dc "$@" ;;
   logs)    dc logs -f --tail=100 "$@" ;;
   ps)      dc ps ;;
   api)     load_env; exec go run ./cmd/api-server ;;

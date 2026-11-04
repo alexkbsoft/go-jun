@@ -10,6 +10,6 @@ CREATE TABLE outbox (
     published_at TIMESTAMPTZ
 );
 
-CREATE INDEX outbox_status_idx ON outbox (status, created_at) WHERE status = 'pending';
+CREATE INDEX outbox_status_idx ON outbox (created_at) WHERE status = 'pending';
 
 COMMIT;
