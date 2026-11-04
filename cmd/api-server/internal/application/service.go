@@ -11,16 +11,6 @@ import (
 	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/domain"
 )
 
-type store interface {
-	CreateList(ctx context.Context, l domain.List) error
-	GetList(ctx context.Context, listId string) (domain.List, error)
-	GetLists(ctx context.Context) ([]domain.List, error)
-	CreateTask(ctx context.Context, t domain.Task) error
-	GetTasks(ctx context.Context, listID string) ([]domain.Task, error)
-	UpdateTask(ctx context.Context, id string, p domain.TaskPatch) (domain.Task, error)
-	DeleteTask(ctx context.Context, taskID string) (domain.Task, error)
-}
-
 type Service struct {
 	repo   Repository
 	events EventPublisher
@@ -93,7 +83,7 @@ func (s *Service) DeleteTask(ctx context.Context, taskID string) (domain.Task, e
 
 func (s *Service) publish(ctx context.Context, t domain.EventType, task domain.Task) {
 	err := s.events.Publish(ctx, domain.Event{
-		Type: t, TaskID: task.ID, ListID: task.ListID, OccurredAt: time.Now(),
+		Type: t, TaskID: task.ID, ListID: task.ListID, OccurredAt: time.Now(), Task: task,
 	})
 	if err != nil {
 		// Задача уже сохранена; падение брокера не должно ломать запрос.

@@ -31,12 +31,12 @@ func (c *Consumer) Run(ctx context.Context) error {
 	// 	select {
 	// 	case <-ctx.Done():
 	// 		return nil
-	// 		case m, ok := <-msgs:
-	// 			if !ok {
-	// 				return errors.New("rabbitmq: delivery channel closed")
-	// 			}
-	// 			c.handle(ctx, m)
+	// case m, ok := <-msgs:
+	// 	if !ok {
+	// 		return errors.New("rabbitmq: delivery channel closed")
 	// 	}
+	// 	c.handle(ctx, m)
+	// }
 	// }
 	<-ctx.Done()
 	return nil

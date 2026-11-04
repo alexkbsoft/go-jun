@@ -15,4 +15,5 @@ type Event struct {
 	TaskID     string
 	ListID     string
 	OccurredAt time.Time
+	Task       Task
 }

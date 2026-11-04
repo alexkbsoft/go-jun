@@ -10,24 +10,24 @@ import (
 	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/domain"
 )
 
-type Store struct {
+type Postgres struct {
 	db *pgxpool.Pool
 }
 
-func New(db *pgxpool.Pool) *Store {
-	return &Store{db: db}
+func New(db *pgxpool.Pool) *Postgres {
+	return &Postgres{db: db}
 }
 
-func (s *Store) CreateList(ctx context.Context, l domain.List) error {
+func (p *Postgres) CreateList(ctx context.Context, l domain.List) error {
 	cmd := `INSERT INTO lists (id, name) VALUES ($1, $2)`
-	_, err := s.db.Exec(ctx, cmd, l.ID, l.Name)
+	_, err := p.db.Exec(ctx, cmd, l.ID, l.Name)
 	return err
 }
 
-func (s *Store) GetList(ctx context.Context, listId string) (domain.List, error) {
+func (p *Postgres) GetList(ctx context.Context, listId string) (domain.List, error) {
 	var listName string
 	cmd := `SELECT name FROM lists WHERE id = $1`
-	err := s.db.QueryRow(ctx, cmd, listId).Scan(&listName)
+	err := p.db.QueryRow(ctx, cmd, listId).Scan(&listName)
 	if err != nil {
 		return domain.List{}, mapErr(err)
 	}
@@ -37,9 +37,9 @@ func (s *Store) GetList(ctx context.Context, listId string) (domain.List, error)
 	}, nil
 }
 
-func (s *Store) GetLists(ctx context.Context) ([]domain.List, error) {
+func (p *Postgres) GetLists(ctx context.Context) ([]domain.List, error) {
 	cmd := `SELECT id, name FROM lists`
-	rows, err := s.db.Query(ctx, cmd)
+	rows, err := p.db.Query(ctx, cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -63,19 +63,19 @@ func (s *Store) GetLists(ctx context.Context) ([]domain.List, error) {
 	return result, nil
 }
 
-func (s *Store) CreateTask(ctx context.Context, t domain.Task) error {
+func (p *Postgres) CreateTask(ctx context.Context, t domain.Task) error {
 	cmd := `INSERT INTO tasks (id, list_id, title, done, created_at) 
 				VALUES ($1, $2, $3, $4, $5)`
-	_, err := s.db.Exec(ctx, cmd, t.ID, t.ListID, t.Title, t.Done, t.CreatedAt)
+	_, err := p.db.Exec(ctx, cmd, t.ID, t.ListID, t.Title, t.Done, t.CreatedAt)
 	return err
 }
 
-func (s *Store) GetTasks(ctx context.Context, listID string) ([]domain.Task, error) {
+func (p *Postgres) GetTasks(ctx context.Context, listID string) ([]domain.Task, error) {
 	cmd := `SELECT id, list_id, title, done, created_at 
 				FROM tasks 
 				WHERE list_id = $1
 				ORDER BY created_at, id`
-	rows, err := s.db.Query(ctx, cmd, listID)
+	rows, err := p.db.Query(ctx, cmd, listID)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (s *Store) GetTasks(ctx context.Context, listID string) ([]domain.Task, err
 	return tasks, nil
 }
 
-func (s *Store) UpdateTask(ctx context.Context, id string, p domain.TaskPatch) (domain.Task, error) {
+func (p *Postgres) UpdateTask(ctx context.Context, id string, patch domain.TaskPatch) (domain.Task, error) {
 	const cmd = `
 		UPDATE tasks
 		   SET title = COALESCE($2, title),
@@ -108,7 +108,7 @@ func (s *Store) UpdateTask(ctx context.Context, id string, p domain.TaskPatch) (
 		RETURNING id, list_id, title, done, created_at`
 
 	var t domain.Task
-	err := s.db.QueryRow(ctx, cmd, id, p.Title, p.Done).
+	err := p.db.QueryRow(ctx, cmd, id, patch.Title, patch.Done).
 		Scan(&t.ID, &t.ListID, &t.Title, &t.Done, &t.CreatedAt)
 	if err != nil {
 		return domain.Task{}, mapErr(err)
@@ -116,10 +116,10 @@ func (s *Store) UpdateTask(ctx context.Context, id string, p domain.TaskPatch) (
 	return t, err
 }
 
-func (s *Store) DeleteTask(ctx context.Context, taskID string) (domain.Task, error) {
+func (p *Postgres) DeleteTask(ctx context.Context, taskID string) (domain.Task, error) {
 	cmd := `DELETE FROM tasks WHERE id = $1 RETURNING id, list_id, title, done, created_at`
 	var task domain.Task
-	err := s.db.QueryRow(ctx, cmd, taskID).Scan(
+	err := p.db.QueryRow(ctx, cmd, taskID).Scan(
 		&task.ID, &task.ListID, &task.Title, &task.Done, &task.CreatedAt,
 	)
 	if err != nil {
