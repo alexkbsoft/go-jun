@@ -3,7 +3,7 @@ package rmqin
 import (
 	"context"
 
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/application"
+	"github.com/alexkbsoft/go-jun/internal/application"
 )
 
 type Consumer struct {

@@ -65,7 +65,8 @@ usage() {
 Использование: ./scripts/env.sh <команда> [аргументы]
 
 Разработка:
-  up                поднять Postgres и применить миграции
+  up                поднять Postgres, RabbitMQ и применить миграции
+  poller            запустить outbox-poller локально
   down              остановить контейнеры (данные остаются)
   clean             удалить контейнеры И данные базы (спросит подтверждение)
   migrate           применить миграции
@@ -109,7 +110,7 @@ prod_cmd() {
 cmd=${1:-help}; shift || true
 
 case $cmd in
-  up)      dc up -d postgres && dc run --rm migrate ;;
+  up)      dc up -d postgres rabbitmq && dc run --rm migrate ;;
   down)    dc down ;;
   clean)
     read -r -p "Удалить контейнеры и ВСЕ данные базы? [y/N] " answer
@@ -121,6 +122,7 @@ case $cmd in
   psql)         psql_in dc "$@" ;;
   logs)    dc logs -f --tail=100 "$@" ;;
   ps)      dc ps ;;
+  poller)  load_env; exec go run ./cmd/outbox-poller ;;
   api)     load_env; exec go run ./cmd/api-server ;;
   web)     (cd web && exec npm run dev) ;;
   test)    go test ./... ;;

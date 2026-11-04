@@ -29,6 +29,20 @@ services:
       postgres:
         condition: service_healthy
 
+  rabbitmq:
+    image: rabbitmq:4-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   api:
     build: .
     image: tasklist-api:${IMAGE_TAG:-latest}
@@ -41,5 +55,20 @@ services:
     ports:
       - "127.0.0.1:8090:8090"
 
+  outbox-poller:
+    build: .
+    image: tasklist-outbox-poller:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      API_SERVER_DB_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      API_SERVER_AMQP_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    command: ["/app/outbox-poller"]
+
 volumes:
   postgres_data:
+  rabbitmq_data:

@@ -11,11 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/adapters/inbound/httpapi"
-	rmqin "github.com/alexkbsoft/go-jun/cmd/api-server/internal/adapters/inbound/rabbitmq"
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/adapters/outbound/postgres"
-	rmqout "github.com/alexkbsoft/go-jun/cmd/api-server/internal/adapters/outbound/rabbitmq"
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/application"
+	"github.com/alexkbsoft/go-jun/internal/adapters/inbound/httpapi"
+	rmqin "github.com/alexkbsoft/go-jun/internal/adapters/inbound/rabbitmq"
+	"github.com/alexkbsoft/go-jun/internal/adapters/outbound/postgres"
+	"github.com/alexkbsoft/go-jun/internal/application"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 )
@@ -50,7 +49,6 @@ func run() error {
 	// pubCh, _ := conn.Channel()  // отдельные каналы: для публикации
 	// conCh, _ := conn.Channel()  // и для потребления
 
-	publisher := rmqout.NewPublisher(db, "tasks.events")
 	repo := postgres.New(db)
 	svc := application.NewService(repo)
 
@@ -75,20 +73,6 @@ func run() error {
 		return srv.Shutdown(sctx)
 	})
 	g.Go(func() error { return consumer.Run(ctx) })
-	g.Go(func() error {
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-ticker.C:
-				if err := publisher.PublishPending(ctx, 100); err != nil {
-					log.Println("outbox poll error:", err)
-				}
-			}
-		}
-	})
 
 	fmt.Println("Server started on", PORT)
 	return g.Wait()

@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/application"
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/domain"
+	"github.com/alexkbsoft/go-jun/internal/application"
+	"github.com/alexkbsoft/go-jun/internal/domain"
 )
 
 type List struct {

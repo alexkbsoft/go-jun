@@ -3,7 +3,7 @@ package httpapi
 import (
 	"net/http"
 
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/application"
+	"github.com/alexkbsoft/go-jun/internal/application"
 )
 
 // Функция принимает роутер и связывает пути с обработчиками

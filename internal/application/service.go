@@ -7,7 +7,7 @@ import (
 	"time"
 	"uuid"
 
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/domain"
+	"github.com/alexkbsoft/go-jun/internal/domain"
 )
 
 type Service struct {

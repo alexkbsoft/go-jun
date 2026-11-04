@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/domain"
+	"github.com/alexkbsoft/go-jun/internal/domain"
 )
 
 type Postgres struct {

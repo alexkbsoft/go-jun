@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/domain"
+	"github.com/alexkbsoft/go-jun/internal/domain"
 )
 
 // Входящий порт: что ядро умеет. Его вызывают HTTP и RabbitMQ.

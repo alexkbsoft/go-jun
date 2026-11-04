@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/application"
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/domain"
+	"github.com/alexkbsoft/go-jun/internal/application"
+	"github.com/alexkbsoft/go-jun/internal/domain"
 	"github.com/jackc/pgx/v5"
 )
 
