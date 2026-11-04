@@ -50,9 +50,9 @@ func run() error {
 	// pubCh, _ := conn.Channel()  // отдельные каналы: для публикации
 	// conCh, _ := conn.Channel()  // и для потребления
 
-	publisher, _ := rmqout.NewPublisher("tasks.events")
+	publisher := rmqout.NewPublisher(db, "tasks.events")
 	repo := postgres.New(db)
-	svc := application.NewService(repo, publisher)
+	svc := application.NewService(repo)
 
 	mux := http.NewServeMux()
 
@@ -75,6 +75,20 @@ func run() error {
 		return srv.Shutdown(sctx)
 	})
 	g.Go(func() error { return consumer.Run(ctx) })
+	g.Go(func() error {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-ticker.C:
+				if err := publisher.PublishPending(ctx, 100); err != nil {
+					log.Println("outbox poll error:", err)
+				}
+			}
+		}
+	})
 
 	fmt.Println("Server started on", PORT)
 	return g.Wait()

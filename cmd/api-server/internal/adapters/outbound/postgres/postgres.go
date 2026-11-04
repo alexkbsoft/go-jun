@@ -2,7 +2,9 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -63,11 +65,102 @@ func (p *Postgres) GetLists(ctx context.Context) ([]domain.List, error) {
 	return result, nil
 }
 
-func (p *Postgres) CreateTask(ctx context.Context, t domain.Task) error {
-	cmd := `INSERT INTO tasks (id, list_id, title, done, created_at) 
-				VALUES ($1, $2, $3, $4, $5)`
-	_, err := p.db.Exec(ctx, cmd, t.ID, t.ListID, t.Title, t.Done, t.CreatedAt)
-	return err
+type taskEvent struct {
+	Type       string    `json:"type"`
+	TaskID     string    `json:"taskId"`
+	ListID     string    `json:"listId"`
+	OccurredAt time.Time `json:"occurredAt"`
+}
+
+func (p *Postgres) CreateTaskWithOutbox(ctx context.Context, t domain.Task) error {
+	payload, err := json.Marshal(taskEvent{
+		Type:       string(domain.TaskCreated),
+		TaskID:     t.ID,
+		ListID:     t.ListID,
+		OccurredAt: time.Now(),
+	})
+	if err != nil {
+		return err
+	}
+
+	tx, err := p.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if err := p.insertTask(ctx, tx, t); err != nil {
+		return err
+	}
+	if err := p.insertOutbox(ctx, tx, t.ID, string(domain.TaskCreated), payload); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (p *Postgres) UpdateTaskWithOutbox(ctx context.Context, id string, patch domain.TaskPatch) (domain.Task, error) {
+	tx, err := p.db.Begin(ctx)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	task, err := p.updateTask(ctx, tx, id, patch)
+	if err != nil {
+		return domain.Task{}, err
+	}
+
+	payload, err := json.Marshal(taskEvent{
+		Type:       string(domain.TaskUpdated),
+		TaskID:     task.ID,
+		ListID:     task.ListID,
+		OccurredAt: time.Now(),
+	})
+	if err != nil {
+		return domain.Task{}, err
+	}
+
+	if err := p.insertOutbox(ctx, tx, task.ID, string(domain.TaskUpdated), payload); err != nil {
+		return domain.Task{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Task{}, err
+	}
+	return task, nil
+}
+
+func (p *Postgres) DeleteTaskWithOutbox(ctx context.Context, taskID string) (domain.Task, error) {
+	tx, err := p.db.Begin(ctx)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	task, err := p.deleteTask(ctx, tx, taskID)
+	if err != nil {
+		return domain.Task{}, err
+	}
+
+	payload, err := json.Marshal(taskEvent{
+		Type:       string(domain.TaskDeleted),
+		TaskID:     task.ID,
+		ListID:     task.ListID,
+		OccurredAt: time.Now(),
+	})
+	if err != nil {
+		return domain.Task{}, err
+	}
+
+	if err := p.insertOutbox(ctx, tx, task.ID, string(domain.TaskDeleted), payload); err != nil {
+		return domain.Task{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Task{}, err
+	}
+	return task, nil
 }
 
 func (p *Postgres) GetTasks(ctx context.Context, listID string) ([]domain.Task, error) {
@@ -99,7 +192,14 @@ func (p *Postgres) GetTasks(ctx context.Context, listID string) ([]domain.Task, 
 	return tasks, nil
 }
 
-func (p *Postgres) UpdateTask(ctx context.Context, id string, patch domain.TaskPatch) (domain.Task, error) {
+func (p *Postgres) insertTask(ctx context.Context, tx pgx.Tx, t domain.Task) error {
+	cmd := `INSERT INTO tasks (id, list_id, title, done, created_at)
+			VALUES ($1, $2, $3, $4, $5)`
+	_, err := tx.Exec(ctx, cmd, t.ID, t.ListID, t.Title, t.Done, t.CreatedAt)
+	return err
+}
+
+func (p *Postgres) updateTask(ctx context.Context, tx pgx.Tx, id string, patch domain.TaskPatch) (domain.Task, error) {
 	const cmd = `
 		UPDATE tasks
 		   SET title = COALESCE($2, title),
@@ -108,7 +208,7 @@ func (p *Postgres) UpdateTask(ctx context.Context, id string, patch domain.TaskP
 		RETURNING id, list_id, title, done, created_at`
 
 	var t domain.Task
-	err := p.db.QueryRow(ctx, cmd, id, patch.Title, patch.Done).
+	err := tx.QueryRow(ctx, cmd, id, patch.Title, patch.Done).
 		Scan(&t.ID, &t.ListID, &t.Title, &t.Done, &t.CreatedAt)
 	if err != nil {
 		return domain.Task{}, mapErr(err)
@@ -116,16 +216,23 @@ func (p *Postgres) UpdateTask(ctx context.Context, id string, patch domain.TaskP
 	return t, err
 }
 
-func (p *Postgres) DeleteTask(ctx context.Context, taskID string) (domain.Task, error) {
+func (p *Postgres) deleteTask(ctx context.Context, tx pgx.Tx, taskID string) (domain.Task, error) {
 	cmd := `DELETE FROM tasks WHERE id = $1 RETURNING id, list_id, title, done, created_at`
-	var task domain.Task
-	err := p.db.QueryRow(ctx, cmd, taskID).Scan(
-		&task.ID, &task.ListID, &task.Title, &task.Done, &task.CreatedAt,
+	var t domain.Task
+	err := tx.QueryRow(ctx, cmd, taskID).Scan(
+		&t.ID, &t.ListID, &t.Title, &t.Done, &t.CreatedAt,
 	)
 	if err != nil {
 		return domain.Task{}, mapErr(err)
 	}
-	return task, nil
+	return t, nil
+}
+
+func (p *Postgres) insertOutbox(ctx context.Context, tx pgx.Tx, aggregateID, eventType string, payload []byte) error {
+	cmd := `INSERT INTO outbox (id, event_type, aggregate_id, json_payload, status, created_at)
+			VALUES (gen_random_uuid(), $1, $2, $3, 'pending', now())`
+	_, err := tx.Exec(ctx, cmd, eventType, aggregateID, payload)
+	return err
 }
 
 func mapErr(err error) error {

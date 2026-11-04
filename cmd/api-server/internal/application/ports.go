@@ -22,13 +22,8 @@ type Repository interface {
 	CreateList(ctx context.Context, l domain.List) error
 	GetList(ctx context.Context, listID string) (domain.List, error)
 	GetLists(ctx context.Context) ([]domain.List, error)
-	CreateTask(ctx context.Context, t domain.Task) error
 	GetTasks(ctx context.Context, listID string) ([]domain.Task, error)
-	UpdateTask(ctx context.Context, id string, p domain.TaskPatch) (domain.Task, error)
-	DeleteTask(ctx context.Context, id string) (domain.Task, error)
-}
-
-// Исходящий порт: публикация событий. Реализует RabbitMQ.
-type EventPublisher interface {
-	Publish(ctx context.Context, e domain.Event) error
+	CreateTaskWithOutbox(ctx context.Context, task domain.Task) error
+	UpdateTaskWithOutbox(ctx context.Context, id string, p domain.TaskPatch) (domain.Task, error)
+	DeleteTaskWithOutbox(ctx context.Context, taskID string) (domain.Task, error)
 }

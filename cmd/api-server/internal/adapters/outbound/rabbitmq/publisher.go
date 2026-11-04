@@ -2,47 +2,28 @@ package rmqout
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"time"
+	// "encoding/json"
+	// "fmt"
+	// "time"
 
-	"github.com/alexkbsoft/go-jun/cmd/api-server/internal/domain"
+	// "github.com/alexkbsoft/go-jun/cmd/api-server/internal/domain"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Publisher struct {
-	// ch       *amqp.Channel
+	db       *pgxpool.Pool
 	exchange string
 }
 
-// func NewPublisher(ch *amqp.Channel, exchange string) (*Publisher, error) {
-func NewPublisher(exchange string) (*Publisher, error) {
-	// if err := ch.ExchangeDeclare(exchange, "topic", true, false, false, false, nil); err != nil {
-	// 	return nil, err
-	// }
-	// return &Publisher{ch: ch, exchange: exchange}, nil
-	return &Publisher{exchange: exchange}, nil
+func NewPublisher(db *pgxpool.Pool, exchange string) *Publisher {
+	return &Publisher{db: db, exchange: exchange}
 }
 
-// Формат сообщения в проводе: свой DTO, а не domain.Event
-type eventMessage struct {
-	Type       string    `json:"type"`
-	TaskID     string    `json:"taskId"`
-	ListID     string    `json:"listId"`
-	OccurredAt time.Time `json:"occurredAt"`
-}
-
-// func (p *Publisher) Publish(ctx context.Context, e domain.Event) error {
-func (p *Publisher) Publish(ctx context.Context, e domain.Event) error {
-	body, err := json.Marshal(eventMessage{string(e.Type), e.TaskID, e.ListID, e.OccurredAt})
-	if err != nil {
-		return err
-	}
-	fmt.Println("EVENT published: ", string(body))
-	// return p.ch.PublishWithContext(ctx, p.exchange, string(e.Type), false, false,
-	// 	amqp.Publishing{
-	// 		ContentType:  "application/json",
-	// 		DeliveryMode: amqp.Persistent,
-	// 		Body:         body,
-	// 	})
+// PublishPending читает pending-записи из outbox и публикует их
+func (p *Publisher) PublishPending(ctx context.Context, batchSize int) error {
+	// 1. SELECT ... FROM outbox WHERE status = 'pending' LIMIT $1 FOR UPDATE SKIP LOCKED
+	// 2. Для каждой записи — publish в RabbitMQ
+	// 3. UPDATE outbox SET status = 'published', published_at = now() WHERE id = $1
+	// Всё в одной транзакции на пакет!
 	return nil
 }

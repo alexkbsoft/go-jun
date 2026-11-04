@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 	"uuid"
@@ -12,12 +11,11 @@ import (
 )
 
 type Service struct {
-	repo   Repository
-	events EventPublisher
+	repo Repository
 }
 
-func NewService(r Repository, p EventPublisher) *Service {
-	return &Service{repo: r, events: p}
+func NewService(r Repository) *Service {
+	return &Service{repo: r}
 }
 
 var _ TaskUseCases = (*Service)(nil)
@@ -48,10 +46,9 @@ func (s *Service) CreateTask(ctx context.Context, listId string, title string, d
 		ListID:    listId,
 		CreatedAt: time.Now(),
 	}
-	if err := s.repo.CreateTask(ctx, task); err != nil {
+	if err := s.repo.CreateTaskWithOutbox(ctx, task); err != nil {
 		return domain.Task{}, err
 	}
-	s.publish(ctx, domain.TaskCreated, task)
 	return task, nil
 }
 func (s *Service) GetTasks(ctx context.Context, listID string) ([]domain.Task, error) {
@@ -64,29 +61,17 @@ func (s *Service) UpdateTask(ctx context.Context, id string, p domain.TaskPatch)
 	if p.Title != nil && strings.TrimSpace(*p.Title) == "" {
 		return domain.Task{}, fmt.Errorf("%w: title must not be empty", domain.ErrInvalid)
 	}
-	task, err := s.repo.UpdateTask(ctx, id, p)
+	task, err := s.repo.UpdateTaskWithOutbox(ctx, id, p)
 	if err != nil {
 		return domain.Task{}, err
 	}
-	s.publish(ctx, domain.TaskUpdated, task)
 	return task, nil
 }
 
 func (s *Service) DeleteTask(ctx context.Context, taskID string) (domain.Task, error) {
-	task, err := s.repo.DeleteTask(ctx, taskID)
+	task, err := s.repo.DeleteTaskWithOutbox(ctx, taskID)
 	if err != nil {
 		return domain.Task{}, err
 	}
-	s.publish(ctx, domain.TaskDeleted, task)
 	return task, nil
-}
-
-func (s *Service) publish(ctx context.Context, t domain.EventType, task domain.Task) {
-	err := s.events.Publish(ctx, domain.Event{
-		Type: t, TaskID: task.ID, ListID: task.ListID, OccurredAt: time.Now(), Task: task,
-	})
-	if err != nil {
-		// Задача уже сохранена; падение брокера не должно ломать запрос.
-		slog.Error("publish event failed", slog.String("error", err.Error()))
-	}
 }
