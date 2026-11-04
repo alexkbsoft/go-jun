@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -67,13 +66,6 @@ func NewPublisher(db *pgxpool.Pool, amqpURL, exchange string) (*Publisher, error
 		conn:     conn,
 		exchange: exchange,
 	}, nil
-}
-
-type taskEvent struct {
-	Type       string    `json:"type"`
-	TaskID     string    `json:"taskId"`
-	ListID     string    `json:"listId"`
-	OccurredAt time.Time `json:"occurredAt"`
 }
 
 // PublishPending читает pending-записи из outbox, публикует в RabbitMQ
