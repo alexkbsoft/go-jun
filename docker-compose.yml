@@ -42,17 +42,19 @@ services:
       postgres:
         condition: service_healthy
 
-  outbox-poller:
-    build: .
+  poller:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
     environment:
-      API_SERVER_DB_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=disable
+      API_SERVER_DB_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       API_SERVER_AMQP_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    command: ["/app/outbox-poller"]
+    command: ["go", "run", "./cmd/outbox-poller"]
 
 volumes:
   postgres_data:

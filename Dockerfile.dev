@@ -1,0 +1,10 @@
+FROM golang:1.27-alpine3.23
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+EXPOSE 8090

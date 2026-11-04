@@ -110,7 +110,7 @@ prod_cmd() {
 cmd=${1:-help}; shift || true
 
 case $cmd in
-  up)      dc up -d postgres rabbitmq && dc run --rm migrate ;;
+  up)      dc up -d postgres rabbitmq poller && dc run --rm migrate ;;
   down)    dc down ;;
   clean)
     read -r -p "Удалить контейнеры и ВСЕ данные базы? [y/N] " answer
