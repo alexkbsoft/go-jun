@@ -33,6 +33,19 @@ load_env() {
 
 # ---------- боевые операции ----------
 
+status() {
+  echo "=== Система ==="
+  echo ""
+  echo "--- Загрузка CPU ---"
+  uptime
+  echo ""
+  echo "--- Память ---"
+  free -h
+  echo ""
+  echo "--- Контейнеры ---"
+  docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}" 2>/dev/null || echo "Docker не запущен"
+}
+
 backup() {
   mkdir -p backups
   local file="backups/backup_$(date +%F_%H%M).sql.gz"
@@ -87,6 +100,7 @@ usage() {
   prod backup       дамп базы в backups/
   prod web          собрать и выложить фронтенд (на сервере)
   prod deploy       git pull + prod up + prod web (на сервере)
+  status            системные ресурсы и потребление по контейнерам
 EOF
 }
 
@@ -126,6 +140,7 @@ case $cmd in
   api)     load_env; exec go run ./cmd/api-server ;;
   web)     (cd web && exec npm run dev) ;;
   test)    go test ./... ;;
+  status)  status ;;
   prod)    prod_cmd "$@" ;;
   help|-h|--help) usage ;;
   *)       echo "Неизвестная команда: $cmd" >&2; usage; exit 1 ;;
