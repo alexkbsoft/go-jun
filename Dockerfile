@@ -13,4 +13,3 @@ USER app
 COPY --from=build /out/api-server /app/api-server
 COPY --from=build /out/outbox-poller /app/outbox-poller
 EXPOSE 8090
-ENTRYPOINT ["/app/api-server"]

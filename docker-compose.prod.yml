@@ -52,6 +52,7 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    command: ["/app/api-server"]
     ports:
       - "127.0.0.1:8090:8090"
 
