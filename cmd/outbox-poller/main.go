@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -19,26 +19,33 @@ func main() {
 	dbURL := os.Getenv("API_SERVER_DB_URL")
 	amqpURL := os.Getenv("API_SERVER_AMQP_URL")
 	if dbURL == "" || amqpURL == "" {
-		log.Fatal("API_SERVER_DB_URL and API_SERVER_AMQP_URL must be set")
+		slog.Error("missing env vars",
+			slog.Bool("has_db_url", dbURL != ""),
+			slog.Bool("has_amqp_url", amqpURL != ""),
+		)
+		os.Exit(1)
 	}
 
 	db, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
-		log.Fatal("db connect:", err)
+		slog.Error("db connect", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 	defer db.Close()
 
 	publisher, err := rmqout.NewPublisher(db, amqpURL, "tasks.events")
 	if err != nil {
-		log.Fatal("publisher connect:", err)
+		slog.Error("publisher connect", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 	defer publisher.Close()
 
 	if err := db.Ping(ctx); err != nil {
-		log.Fatal("db ping:", err)
+		slog.Error("db ping", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 
-	log.Println("Outbox poller started")
+	slog.Info("Outbox poller started")
 
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
@@ -46,11 +53,11 @@ func main() {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Outbox poller stopped")
+			slog.Info("Outbox poller stopped")
 			return
 		case <-ticker.C:
 			if err := publisher.PublishPending(ctx, 100); err != nil {
-				log.Println("outbox poll error:", err)
+				slog.Error("outbox poll error", slog.String("error", err.Error()))
 			}
 		}
 	}

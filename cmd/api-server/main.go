@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,7 +23,8 @@ const PORT = ":8090"
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatal(err)
+		slog.Error("server error", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 }
 
@@ -33,13 +34,13 @@ func run() error {
 
 	dbURL := os.Getenv("API_SERVER_DB_URL")
 	if dbURL == "" {
-		log.Fatal("API_SERVER_DB_URL is not set")
+		slog.Error("API_SERVER_DB_URL is not set")
 		os.Exit(1)
 	}
 
 	db, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		slog.Error("Failed to connect to database", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 	defer db.Close()

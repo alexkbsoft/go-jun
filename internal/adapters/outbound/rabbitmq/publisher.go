@@ -140,7 +140,7 @@ func (p *Publisher) PublishPending(ctx context.Context, batchSize int) error {
 
 		switch res.Outcome.(type) {
 		case *rmq.StateAccepted:
-			slog.Debug("published event",
+			slog.Info("published event",
 				slog.String("type", r.eventType),
 				slog.String("aggregate", r.aggregateID),
 			)
