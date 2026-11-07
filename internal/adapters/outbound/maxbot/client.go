@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 )
 
 type Client struct {
@@ -50,19 +52,31 @@ func New(botToken, chatID string) *Client {
 	}
 
 	transport := &http.Transport{
+		// Принудительно HTTP/1.1 — сервер MAX может некорректно обрабатывать HTTP/2
 		TLSClientConfig: &tls.Config{
-			RootCAs: caCertPool,
+			RootCAs:            caCertPool,
+			InsecureSkipVerify: false,
 		},
+		// Настройки подключения
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-		return &Client{
-			botToken: botToken,
-			chatID:   chatID,
-			httpClient: &http.Client{
-				Transport: transport,
-				Timeout:   60,
-			},
-		}
+	return &Client{
+		botToken: botToken,
+		chatID:   chatID,
+		httpClient: &http.Client{
+			Transport: transport,
+			Timeout:   30 * time.Second,
+		},
+	}
 }
 
 type sendMessageRequest struct {
@@ -85,6 +99,8 @@ func (c *Client) SendText(ctx context.Context, text string) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", c.botToken)
+	// Принудительно HTTP/1.1
+	req.Close = true
 
 	slog.Info("sending to MAX", slog.String("url", u), slog.String("text", text))
 
