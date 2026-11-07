@@ -2,7 +2,6 @@ package maxbot
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -56,7 +55,7 @@ func New(botToken, chatID string) *Client {
 		}
 	}
 
-	// Минимальный транспорт — только CA-пул, всё остальное по умолчанию
+	// Минимальный транспорт — только CA-пул и HTTP/1.1
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.TLSClientConfig = &tls.Config{
 		RootCAs:            caCertPool,
@@ -70,7 +69,7 @@ func New(botToken, chatID string) *Client {
 		chatID:   chatID,
 		httpClient: &http.Client{
 			Transport: transport,
-			Timeout:   45 * time.Second,
+			Timeout:   30 * time.Second,
 		},
 	}
 }
@@ -79,7 +78,7 @@ type sendMessageRequest struct {
 	Text string `json:"text"`
 }
 
-func (c *Client) SendText(ctx context.Context, text string) error {
+func (c *Client) SendText(text string) error {
 	reqBody, err := json.Marshal(sendMessageRequest{
 		Text: text,
 	})
@@ -91,11 +90,7 @@ func (c *Client) SendText(ctx context.Context, text string) error {
 
 	slog.Info("sending to MAX", slog.String("url", u), slog.String("text", text))
 
-	// Создаём НОВЫЙ контекст с таймаутом для HTTP-запроса
-	reqCtx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, u, bytes.NewReader(reqBody))
+	req, err := http.NewRequest(http.MethodPost, u, bytes.NewReader(reqBody))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}

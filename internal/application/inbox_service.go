@@ -12,7 +12,7 @@ import (
 
 // TelegramClient — порт для MAX Bot
 type TelegramClient interface {
-	SendText(ctx context.Context, text string) error
+	SendText(text string) error
 }
 
 // InboxPendingEvent — сырое событие из RabbitMQ, ещё не обработанное
@@ -138,6 +138,6 @@ func (s *InboxService) processSingleEvent(ctx context.Context, event domain.Inbo
 	return nil
 }
 
-func (s *InboxService) notifyMax(ctx context.Context, text string) error {
-	return s.maxBot.SendText(ctx, text)
+func (s *InboxService) notifyMax(_ context.Context, text string) error {
+	return s.maxBot.SendText(text)
 }
