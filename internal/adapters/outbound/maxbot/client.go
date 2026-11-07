@@ -56,15 +56,16 @@ func New(botToken, chatID string) *Client {
 		}
 	}
 
-	// Создаём HTTP клиент с явным HTTP/1.1
+	// TLS с явным HTTP/1.1 — сервер MAX не поддерживает HTTP/2
+	tlsConfig := &tls.Config{
+		RootCAs:            caCertPool,
+		InsecureSkipVerify: false,
+		MinVersion:         tls.VersionTLS12,
+		NextProtos:         []string{"http/1.1"},
+	}
+
 	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			RootCAs:            caCertPool,
-			InsecureSkipVerify: false,
-			MinVersion:         tls.VersionTLS12,
-		},
-		// Отключаем HTTP/2 — сервер MAX может некорректно обрабатывать
-		TLSNextProto:      nil,
+		TLSClientConfig:   tlsConfig,
 		DisableKeepAlives: true,
 		MaxIdleConns:      0,
 		IdleConnTimeout:   30 * time.Second,
