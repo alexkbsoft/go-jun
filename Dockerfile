@@ -9,18 +9,20 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /out/inbox-poller ./cmd/inbox-poller
 
 
 FROM alpine:3.24
+
+# 1. Устанавливаем пакет для обновления сертификатов
+RUN apk --no-cache add ca-certificates && update-ca-certificates
+
 RUN adduser -S -D -H app
 
 COPY --from=build /out/api-server /app/api-server
 COPY --from=build /out/outbox-poller /app/outbox-poller
 COPY --from=build /out/inbox-poller /app/inbox-poller
 
-# Скачиваем CA-сертификаты Russian Trusted CA с CDN Max
-RUN wget -qO /tmp/max-subca.crt "http://nuc-cdp.voskhod.ru/cdp/subca_ssl_rsa2024.crt" && \
-    wget -qO /tmp/max-rootca.crt "http://nuc-cdp.voskhod.ru/cdp/rootca_ssl_rsa2022.crt" && \
-    cat /tmp/max-subca.crt /tmp/max-rootca.crt >> /etc/ssl/certs/ca-certificates.crt && \
-    rm -f /tmp/max-*.crt
+# 2. Копируем CA-сертификаты Russian Trusted CA от Госуслуг/Max
+COPY certs/*.cer /usr/local/share/ca-certificates/
 
-ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+# 3. Регистрируем добавленные сертификаты в системе
+RUN update-ca-certificates
 
 EXPOSE 8090

@@ -115,8 +115,6 @@ services:
       rabbitmq: 
         condition: service_healthy
     command: ["/app/inbox-poller"]
-    volumes:
-      - /root/max-ca-bundle.pem:/etc/ssl/certs/max-ca-bundle.pem:ro
 
 
 volumes:
