@@ -3,7 +3,6 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-COPY certs/ /build-certs/
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/api-server ./cmd/api-server
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/outbox-poller ./cmd/outbox-poller
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/inbox-poller ./cmd/inbox-poller
@@ -16,11 +15,9 @@ COPY --from=build /out/api-server /app/api-server
 COPY --from=build /out/outbox-poller /app/outbox-poller
 COPY --from=build /out/inbox-poller /app/inbox-poller
 
-# Копируем CA-сертификаты из build stage
-COPY --from=build /build-certs/Russian_Trusted_Root_CA.cer /tmp/ca1.pem
-COPY --from=build /build-certs/Russian_Trusted_Sub_CA.cer /tmp/ca2.pem
-COPY --from=build /build-certs/Russian_Trusted_Sub_CA_2024.cer /tmp/ca3.pem
-
-RUN cat /tmp/ca1.pem /tmp/ca2.pem /tmp/ca3.pem >> /etc/ssl/certs/ca-certificates.crt
+# Скачиваем CA-сертификаты Russian Trusted CA с CDN Max
+RUN curl -sL "http://nuc-cdp.voskhod.ru/cdp/subca_ssl_rsa2024.crt" -o /tmp/max-subca.crt && \
+    curl -sL "http://nuc-cdp.voskhod.ru/cdp/rootca_ssl_rsa2022.crt" -o /tmp/max-rootca.crt && \
+    cat /tmp/max-subca.crt /tmp/max-rootca.crt >> /etc/ssl/certs/ca-certificates.crt
 
 EXPOSE 8090
