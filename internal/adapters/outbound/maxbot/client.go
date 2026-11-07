@@ -55,13 +55,14 @@ func New(botToken, chatID string) *Client {
 		}
 	}
 
-	// Минимальный транспорт — только CA-пул и HTTP/1.1
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = &tls.Config{
-		RootCAs:            caCertPool,
-		InsecureSkipVerify: false,
-		MinVersion:         tls.VersionTLS12,
-		NextProtos:         []string{"http/1.1"},
+	// Создаём transport с нуля — только CA-пул
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			RootCAs:            caCertPool,
+			InsecureSkipVerify: false,
+			MinVersion:         tls.VersionTLS12,
+			NextProtos:         []string{"http/1.1"},
+		},
 	}
 
 	return &Client{
