@@ -63,13 +63,11 @@ func New(botToken, chatID string) *Client {
 			InsecureSkipVerify: false,
 			MinVersion:         tls.VersionTLS12,
 		},
-		// Отключаем HTTP/2
-		TLSNextProto: make(map[string]func(*http.Client, string, *tls.Conn)),
-		// Настройки подключения
-		DisableKeepAlives:     true,
-		MaxIdleConns:          0,
-		IdleConnTimeout:       30 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
+		// Отключаем HTTP/2 — сервер MAX может некорректно обрабатывать
+		TLSNextProto:      nil,
+		DisableKeepAlives: true,
+		MaxIdleConns:      0,
+		IdleConnTimeout:   30 * time.Second,
 	}
 
 	return &Client{
@@ -102,7 +100,13 @@ func (c *Client) SendText(ctx context.Context, text string) error {
 	reqCtx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
 
-	resp, err := c.httpClient.PostContext(reqCtx, u, "application/json", bytes.NewReader(reqBody))
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, u, bytes.NewReader(reqBody))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
 	}
