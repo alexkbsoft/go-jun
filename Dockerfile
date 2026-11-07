@@ -15,12 +15,9 @@ COPY --from=build /out/outbox-poller /app/outbox-poller
 COPY --from=build /out/inbox-poller /app/inbox-poller
 
 # Встраиваем CA-сертификаты MAX
-COPY certs/Russian_Trusted_Root_CA.cer /usr/local/share/ca-certificates/
-COPY certs/Russian_Trusted_Sub_CA.cer /usr/local/share/ca-certificates/
-COPY certs/Russian_Trusted_Sub_CA_2024.cer /usr/local/share/ca-certificates/
-RUN cat /usr/local/share/ca-certificates/Russian_Trusted_Root_CA.cer \
-    /usr/local/share/ca-certificates/Russian_Trusted_Sub_CA.cer \
-    /usr/local/share/ca-certificates/Russian_Trusted_Sub_CA_2024.cer \
-    >> /etc/ssl/certs/ca-certificates.crt
+COPY certs/Russian_Trusted_Root_CA.cer /tmp/ca1.pem
+COPY certs/Russian_Trusted_Sub_CA.cer /tmp/ca2.pem
+COPY certs/Russian_Trusted_Sub_CA_2024.cer /tmp/ca3.pem
+RUN cat /tmp/ca1.pem /tmp/ca2.pem /tmp/ca3.pem >> /etc/ssl/certs/ca-certificates.crt
 
 EXPOSE 8090
