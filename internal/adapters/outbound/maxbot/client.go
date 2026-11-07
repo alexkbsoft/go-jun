@@ -54,14 +54,14 @@ func New(botToken, chatID string) *Client {
 		},
 	}
 
-	return &Client{
-		botToken: botToken,
-		chatID:   chatID,
-		httpClient: &http.Client{
-			Transport: transport,
-			Timeout:   10,
-		},
-	}
+		return &Client{
+			botToken: botToken,
+			chatID:   chatID,
+			httpClient: &http.Client{
+				Transport: transport,
+				Timeout:   30,
+			},
+		}
 }
 
 type sendMessageRequest struct {
