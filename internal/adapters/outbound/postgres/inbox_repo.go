@@ -2,27 +2,38 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	
 
+	"github.com/alexkbsoft/go-jun/internal/application"
 	"github.com/alexkbsoft/go-jun/internal/domain"
 	"github.com/jackc/pgx/v5"
 )
 
 // --- Inbox ---
 
-func (p *Postgres) InsertInboxEvent(ctx context.Context, event domain.InboxEvent) error {
+// InsertInboxEvent записывает событие из RabbitMQ в inbox в транзакции.
+// ON CONFLICT DO NOTHING не генерирует ошибку — если есть ошибка, это не дубликат.
+func (p *Postgres) InsertInboxEvent(ctx context.Context, event application.InboxPendingEvent) error {
+	tx, err := p.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
 	cmd := `
 		INSERT INTO inbox (id, event_type, aggregate_id, json_payload, occurred_at, status)
 		VALUES (gen_random_uuid(), $1, $2, $3, $4, 'pending')
 		ON CONFLICT (event_type, aggregate_id, occurred_at) DO NOTHING
 	`
-	_, err := p.db.Exec(ctx, cmd, event.EventType, event.AggregateID, event.Payload, event.OccurredAt)
-	return err
+	_, err = tx.Exec(ctx, cmd, event.EventType, event.AggregateID, event.Payload, event.OccurredAt)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
-func (p *Postgres) ClaimInboxEvents(ctx context.Context, batchSize int) ([]domain.InboxEvent, error) {
+// ClaimPendingEvents читает pending-события для обработки тикером
+func (p *Postgres) ClaimPendingEvents(ctx context.Context, batchSize int) ([]domain.InboxEvent, error) {
 	tx, err := p.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, err
@@ -90,23 +101,4 @@ func (p *Postgres) UpsertTask(ctx context.Context, t domain.Task) error {
 func (p *Postgres) DeleteTask(ctx context.Context, taskID string) error {
 	_, err := p.db.Exec(ctx, `DELETE FROM tasks WHERE id = $1`, taskID)
 	return err
-}
-
-// --- Helpers ---
-
-func parseTaskPayload(payload []byte) (string, string, string, bool, error) {
-	var raw map[string]interface{}
-	if err := json.Unmarshal(payload, &raw); err != nil {
-		return "", "", "", false, fmt.Errorf("parse json: %w", err)
-	}
-
-	taskID, _ := raw["taskId"].(string)
-	listID, _ := raw["listId"].(string)
-	title, _ := raw["title"].(string)
-	done := false
-	if d, ok := raw["done"].(bool); ok {
-		done = d
-	}
-
-	return taskID, listID, title, done, nil
 }

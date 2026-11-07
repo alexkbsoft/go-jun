@@ -113,7 +113,7 @@ func main() {
 		}
 	}()
 
-	// Тикер для периодической обработки пакетов (если нужно)
+	// Тикер для обработки pending-событий из inbox → tasks + MAX
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -123,7 +123,9 @@ func main() {
 			slog.Info("Inbox poller stopped")
 			return
 		case <-ticker.C:
-			// TODO: если нужна дополнительная логика по тикеру
+			if err := inboxSvc.ProcessPendingBatch(ctx); err != nil {
+				slog.Error("process pending batch", slog.String("error", err.Error()))
+			}
 		}
 	}
 }

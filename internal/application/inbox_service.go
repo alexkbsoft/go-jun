@@ -15,9 +15,18 @@ type TelegramClient interface {
 	SendText(ctx context.Context, text string) error
 }
 
+// InboxPendingEvent — сырое событие из RabbitMQ, ещё не обработанное
+type InboxPendingEvent struct {
+	EventType   string
+	AggregateID string
+	Payload     []byte
+	OccurredAt  time.Time
+}
+
 // InboxRepository — порт для работы с inbox и tasks
 type InboxRepository interface {
-	InsertInboxEvent(ctx context.Context, event domain.InboxEvent) error
+	InsertInboxEvent(ctx context.Context, event InboxPendingEvent) error
+	ClaimPendingEvents(ctx context.Context, batchSize int) ([]domain.InboxEvent, error)
 	MarkInboxProcessed(ctx context.Context, eventID string) error
 	MarkInboxRejected(ctx context.Context, eventID string) error
 	UpsertTask(ctx context.Context, t domain.Task) error
@@ -36,85 +45,94 @@ func NewInboxService(repo InboxRepository, maxBot TelegramClient) *InboxService 
 	}
 }
 
-func (s *InboxService) ProcessMessage(ctx context.Context, body []byte) error {
-	// Парсим входящее событие
+// InsertInboxEvent записывает событие из RabbitMQ в inbox в транзакции
+func (s *InboxService) InsertInboxEvent(ctx context.Context, event InboxPendingEvent) error {
+	return s.repo.InsertInboxEvent(ctx, event)
+}
+
+// ProcessPendingBatch читает pending-события из inbox и обрабатывает пачкой
+func (s *InboxService) ProcessPendingBatch(ctx context.Context) error {
+	events, err := s.repo.ClaimPendingEvents(ctx, 100)
+	if err != nil {
+		return err
+	}
+
+	if len(events) == 0 {
+		return nil
+	}
+
+	slog.Info("processing inbox batch", slog.Int("count", len(events)))
+
+	for _, event := range events {
+		if err := s.processSingleEvent(ctx, event); err != nil {
+			slog.Error("process inbox event",
+				slog.String("event_id", event.ID),
+				slog.String("error", err.Error()),
+			)
+			// Помечаем как rejected — чтобы не крутить бесконечно
+			_ = s.repo.MarkInboxRejected(ctx, event.ID)
+		} else {
+			_ = s.repo.MarkInboxProcessed(ctx, event.ID)
+		}
+	}
+
+	return nil
+}
+
+func (s *InboxService) processSingleEvent(ctx context.Context, event domain.InboxEvent) error {
+	// Парсим payload
 	var raw struct {
 		Type       string    `json:"type"`
 		TaskID     string    `json:"taskId"`
 		ListID     string    `json:"listId"`
 		Title      string    `json:"title"`
 		Done       bool      `json:"done"`
-		OccurredAt time.Time `json:"occurredAt"`
 	}
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return fmt.Errorf("parse event: %w", err)
-	}
-
-	event := domain.InboxEvent{
-		EventType:   raw.Type,
-		AggregateID: raw.TaskID,
-		Payload:     body,
-		OccurredAt:  raw.OccurredAt,
+	if err := json.Unmarshal(event.Payload, &raw); err != nil {
+		return fmt.Errorf("parse payload: %w", err)
 	}
 
-	// 1. Проверяем идемпотентность — уникальный индекс (event_type, aggregate_id, occurred_at)
-	err := s.repo.InsertInboxEvent(ctx, event)
-	if err != nil {
-		// Дубликат — игнорируем
-		slog.Info("duplicate event, skipping",
-			slog.String("type", raw.Type),
-			slog.String("task_id", raw.TaskID),
-		)
-		return nil
-	}
-
-	// 2. Обновляем tasks и отправляем уведомление
-	return s.processTaskEvent(ctx, raw.Type, raw.TaskID, raw.ListID, raw.Title, raw.Done)
-}
-
-func (s *InboxService) processTaskEvent(ctx context.Context, eventType, taskID, listID, title string, done bool) error {
-	switch eventType {
+	switch raw.Type {
 	case "task.created":
 		task := domain.Task{
-			ID:        taskID,
-			ListID:    listID,
-			Title:     title,
-			Done:      done,
+			ID:        raw.TaskID,
+			ListID:    raw.ListID,
+			Title:     raw.Title,
+			Done:      raw.Done,
 			CreatedAt: time.Now(),
 		}
 		if err := s.repo.UpsertTask(ctx, task); err != nil {
 			return err
 		}
 		// Уведомляем
-		if err := s.notifyMax(ctx, fmt.Sprintf("задача с именем %s создана", title)); err != nil {
+		if err := s.notifyMax(ctx, fmt.Sprintf("задача с именем %s создана", raw.Title)); err != nil {
 			slog.Error("notify max", slog.String("error", err.Error()))
 		}
 
 	case "task.updated":
-		// Обновляем задачу (ON CONFLICT)
 		task := domain.Task{
-			ID:     taskID,
-			ListID: listID,
-			Title:  title,
-			Done:   done,
+			ID:     raw.TaskID,
+			ListID: raw.ListID,
+			Title:  raw.Title,
+			Done:   raw.Done,
 		}
 		if err := s.repo.UpsertTask(ctx, task); err != nil {
 			return err
 		}
 		// Уведомляем только если стало done
-		if done {
-			if err := s.notifyMax(ctx, fmt.Sprintf("задача с именем %s завершена", title)); err != nil {
+		if raw.Done {
+			if err := s.notifyMax(ctx, fmt.Sprintf("задача с именем %s завершена", raw.Title)); err != nil {
 				slog.Error("notify max", slog.String("error", err.Error()))
 			}
 		}
 
 	case "task.deleted":
-		if err := s.repo.DeleteTask(ctx, taskID); err != nil {
+		if err := s.repo.DeleteTask(ctx, raw.TaskID); err != nil {
 			return err
 		}
 
 	default:
-		slog.Warn("unknown event type", slog.String("type", eventType))
+		slog.Warn("unknown event type", slog.String("type", raw.Type))
 	}
 
 	return nil
