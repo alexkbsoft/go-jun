@@ -10,9 +10,12 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /out/inbox-poller ./cmd/inbox-poller
 
 FROM alpine:3.24
 RUN adduser -S -D -H app
-USER app
 COPY --from=build /out/api-server /app/api-server
 COPY --from=build /out/outbox-poller /app/outbox-poller
 COPY --from=build /out/inbox-poller /app/inbox-poller
+
+# Встраиваем CA-сертификаты MAX
+COPY certs/*.cer /usr/local/share/ca-certificates/
+RUN cat /usr/local/share/ca-certificates/*.cer >> /etc/ssl/certs/ca-certificates.crt
 
 EXPOSE 8090

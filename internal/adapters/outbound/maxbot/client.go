@@ -3,15 +3,11 @@ package maxbot
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"time"
 )
 
 type Client struct {
@@ -21,46 +17,10 @@ type Client struct {
 }
 
 func New(botToken, chatID string) *Client {
-	caPaths := []string{
-		os.Getenv("MAX_CA_CERT_PATH"),
-		os.Getenv("SSL_CERT_FILE"),
-	}
-
-	var caCertPool *x509.CertPool
-	for _, path := range caPaths {
-		if path == "" {
-			continue
-		}
-		caCert, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		caCertPool = x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(caCert)
-		break
-	}
-
-	// Если нет CA-файла — пробуем системный (работает на Linux)
-	if caCertPool == nil {
-		roots, _ := x509.SystemCertPool()
-		if roots != nil {
-			caCertPool = roots
-		}
-	}
-
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			RootCAs: caCertPool,
-		},
-	}
-
 	return &Client{
-		botToken: botToken,
-		chatID:   chatID,
-		httpClient: &http.Client{
-			Transport: transport,
-			Timeout:   10 * time.Second,
-		},
+		botToken:   botToken,
+		chatID:     chatID,
+		httpClient: &http.Client{Timeout: 10},
 	}
 }
 
