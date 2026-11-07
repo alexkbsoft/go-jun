@@ -16,8 +16,8 @@ COPY --from=build /out/outbox-poller /app/outbox-poller
 COPY --from=build /out/inbox-poller /app/inbox-poller
 
 # Скачиваем CA-сертификаты Russian Trusted CA с CDN Max
-RUN curl -sL "http://nuc-cdp.voskhod.ru/cdp/subca_ssl_rsa2024.crt" -o /tmp/max-subca.crt && \
-    curl -sL "http://nuc-cdp.voskhod.ru/cdp/rootca_ssl_rsa2022.crt" -o /tmp/max-rootca.crt && \
+RUN wget -qO /tmp/max-subca.crt "http://nuc-cdp.voskhod.ru/cdp/subca_ssl_rsa2024.crt" && \
+    wget -qO /tmp/max-rootca.crt "http://nuc-cdp.voskhod.ru/cdp/rootca_ssl_rsa2022.crt" && \
     cat /tmp/max-subca.crt /tmp/max-rootca.crt >> /etc/ssl/certs/ca-certificates.crt
 
 EXPOSE 8090
