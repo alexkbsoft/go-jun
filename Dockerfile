@@ -20,7 +20,9 @@ COPY --from=build /out/outbox-poller /app/outbox-poller
 COPY --from=build /out/inbox-poller /app/inbox-poller
 
 # 2. Копируем CA-сертификаты Russian Trusted CA от Госуслуг/Max
-COPY certs/*.cer /usr/local/share/ca-certificates/
+COPY certs/Russian_Trusted_Root_CA.cer /usr/local/share/ca-certificates/Russian_Trusted_Root_CA.crt
+COPY certs/Russian_Trusted_Sub_CA.cer /usr/local/share/ca-certificates/Russian_Trusted_Sub_CA.crt
+COPY certs/Russian_Trusted_Sub_CA_2024.cer /usr/local/share/ca-certificates/Russian_Trusted_Sub_CA_2024.crt
 
 # 3. Регистрируем добавленные сертификаты в системе
 RUN update-ca-certificates
