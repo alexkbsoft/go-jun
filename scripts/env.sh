@@ -90,6 +90,8 @@ usage() {
   api               запустить Go-сервис (переменные берутся из .env)
   web               запустить Vite (интерфейс на http://localhost:5173)
   test              go test ./...
+  inbox_migrate       применить миграции inbox-базы (локально)
+  inbox_poller        запустить inbox-poller локально
 
 Боевое окружение (prod <команда>):
   prod up           собрать образы и запустить
@@ -124,7 +126,7 @@ prod_cmd() {
 cmd=${1:-help}; shift || true
 
 case $cmd in
-  up)      dc up -d postgres rabbitmq poller && dc run --rm migrate ;;
+  up)      dc up -d postgres rabbitmq poller && dc run --rm migrate && dc run --rm inbox-migrate ;;
   down)    dc down ;;
   clean)
     read -r -p "Удалить контейнеры и ВСЕ данные базы? [y/N] " answer
@@ -133,6 +135,8 @@ case $cmd in
     ;;
   migrate)      dc run --rm migrate ;;
   migrate_down) load_env; dc run --rm migrate -path /migrations -database "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable" down "${1:-1}" ;;
+  inbox_migrate) dc run --rm migrate -path /inbox-migrations -database "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@inbox-postgres:5432/${INBOX_POSTGRES_DB:-tasklist_inbox}?sslmode=disable" up ;;
+  inbox_poller)  load_env; exec go run ./cmd/inbox-poller ;;
   psql)         psql_in dc "$@" ;;
   logs)    dc logs -f --tail=100 "$@" ;;
   ps)      dc ps ;;

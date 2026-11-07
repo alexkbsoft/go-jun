@@ -69,6 +69,8 @@ type taskEvent struct {
 	Type       string    `json:"type"`
 	TaskID     string    `json:"taskId"`
 	ListID     string    `json:"listId"`
+	Title      string    `json:"title"`
+	Done       bool      `json:"done"`
 	OccurredAt time.Time `json:"occurredAt"`
 }
 
@@ -77,6 +79,8 @@ func (p *Postgres) CreateTaskWithOutbox(ctx context.Context, t domain.Task) erro
 		Type:       string(domain.TaskCreated),
 		TaskID:     t.ID,
 		ListID:     t.ListID,
+		Title:      t.Title,
+		Done:       t.Done,
 		OccurredAt: time.Now(),
 	})
 	if err != nil {
@@ -115,6 +119,8 @@ func (p *Postgres) UpdateTaskWithOutbox(ctx context.Context, id string, patch do
 		Type:       string(domain.TaskUpdated),
 		TaskID:     task.ID,
 		ListID:     task.ListID,
+		Title:      task.Title,
+		Done:       task.Done,
 		OccurredAt: time.Now(),
 	})
 	if err != nil {
@@ -147,6 +153,8 @@ func (p *Postgres) DeleteTaskWithOutbox(ctx context.Context, taskID string) (dom
 		Type:       string(domain.TaskDeleted),
 		TaskID:     task.ID,
 		ListID:     task.ListID,
+		Title:      task.Title,
+		Done:       task.Done,
 		OccurredAt: time.Now(),
 	})
 	if err != nil {
