@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -59,7 +60,7 @@ func New(botToken, chatID string) *Client {
 			chatID:   chatID,
 			httpClient: &http.Client{
 				Transport: transport,
-				Timeout:   30,
+				Timeout:   60,
 			},
 		}
 }
@@ -85,11 +86,15 @@ func (c *Client) SendText(ctx context.Context, text string) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", c.botToken)
 
+	slog.Info("sending to MAX", slog.String("url", u), slog.String("text", text))
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	slog.Info("MAX response", slog.Int("status", resp.StatusCode))
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
