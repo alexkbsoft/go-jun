@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -36,38 +35,41 @@ func New(botToken, chatID string) *Client {
 		}
 		caCert, err := os.ReadFile(path)
 		if err != nil {
+			slog.Warn("failed to read CA cert", slog.String("path", path), slog.String("error", err.Error()))
 			continue
 		}
 		caCertPool = x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
+		slog.Info("loaded CA certs", slog.String("path", path))
 		break
 	}
 
 	// Если нет CA-файла — пробуем системный (работает на Linux)
 	if caCertPool == nil {
-		roots, _ := x509.SystemCertPool()
+		roots, err := x509.SystemCertPool()
+		if err != nil {
+			slog.Warn("failed to load system cert pool", slog.String("error", err.Error()))
+		}
 		if roots != nil {
 			caCertPool = roots
+			slog.Info("using system cert pool")
 		}
 	}
 
+	// Создаём HTTP клиент с явным HTTP/1.1
 	transport := &http.Transport{
-		// Отключаем HTTP/2 — сервер MAX может некорректно обрабатывать
-		TLSNextProto: make(map[string]func(*http.Client, string, *tls.Conn)),
 		TLSClientConfig: &tls.Config{
 			RootCAs:            caCertPool,
 			InsecureSkipVerify: false,
+			MinVersion:         tls.VersionTLS12,
 		},
+		// Отключаем HTTP/2
+		TLSNextProto: make(map[string]func(*http.Client, string, *tls.Conn)),
 		// Настройки подключения
-		DialContext: (&net.Dialer{
-			Timeout:   10 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		MaxIdleConns:          100,
-		MaxIdleConnsPerHost:   10,
-		IdleConnTimeout:       90 * time.Second,
+		DisableKeepAlives:     true,
+		MaxIdleConns:          0,
+		IdleConnTimeout:       30 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
 	}
 
 	return &Client{
@@ -75,7 +77,7 @@ func New(botToken, chatID string) *Client {
 		chatID:   chatID,
 		httpClient: &http.Client{
 			Transport: transport,
-			Timeout:   30 * time.Second,
+			Timeout:   45 * time.Second,
 		},
 	}
 }
@@ -94,24 +96,19 @@ func (c *Client) SendText(ctx context.Context, text string) error {
 
 	u := fmt.Sprintf("https://platform-api2.max.ru/messages?chat_id=%s", url.QueryEscape(c.chatID))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", c.botToken)
-	// Принудительно HTTP/1.1
-	req.Close = true
-
 	slog.Info("sending to MAX", slog.String("url", u), slog.String("text", text))
 
-	resp, err := c.httpClient.Do(req)
+	// Создаём НОВЫЙ контекст с таймаутом для HTTP-запроса
+	reqCtx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	resp, err := c.httpClient.PostContext(reqCtx, u, "application/json", bytes.NewReader(reqBody))
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	slog.Info("MAX response", slog.Int("status", resp.StatusCode))
+	slog.Info("MAX response received", slog.Int("status", resp.StatusCode))
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
