@@ -39,9 +39,9 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: rabbitmq-diagnostics -q ping
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      interval: 10s
+      timeout: 30s
+      retries: 10
 
   api:
     build: .
