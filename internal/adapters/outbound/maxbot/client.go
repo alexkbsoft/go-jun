@@ -52,7 +52,8 @@ func New(botToken, chatID string) *Client {
 	}
 
 	transport := &http.Transport{
-		// Принудительно HTTP/1.1 — сервер MAX может некорректно обрабатывать HTTP/2
+		// Отключаем HTTP/2 — сервер MAX может некорректно обрабатывать
+		TLSNextProto: make(map[string]func(*http.Client, string, *tls.Conn)),
 		TLSClientConfig: &tls.Config{
 			RootCAs:            caCertPool,
 			InsecureSkipVerify: false,
