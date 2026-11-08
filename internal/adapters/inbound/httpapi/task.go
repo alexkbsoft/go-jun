@@ -67,7 +67,7 @@ func HandleGetTasks(uc application.TaskUseCases) http.HandlerFunc {
 			return
 		}
 
-		var tasksJson []Task
+		tasksJson := make([]Task, 0)
 
 		for _, l := range tasks {
 			tasksJson = append(tasksJson, Task{

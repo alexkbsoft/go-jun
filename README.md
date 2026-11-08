@@ -46,3 +46,9 @@ docker exec -it -u 0 tasklist-prod-api-1 sh
 docker compose exec postgres psql -U postgres -d api_server_db
 ```
 -u 0 - открыть суперюзером
+
+## Пересборка сервиса с очиской кэша слоев докера
+```bash
+docker compose build --no-cache inbox-poller
+docker compose up -d inbox-poller
+```

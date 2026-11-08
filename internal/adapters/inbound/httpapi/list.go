@@ -106,7 +106,7 @@ func HandleGetLists(uc application.TaskUseCases) http.HandlerFunc {
 			return
 		}
 
-		var listsJson []List
+		listsJson := make([]List, 0)
 
 		for _, l := range lists {
 			listsJson = append(listsJson, List{
