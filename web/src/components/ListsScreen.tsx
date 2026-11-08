@@ -55,7 +55,12 @@ export default function ListsScreen({ onOpenList }: ListsScreenProps) {
   };
 
   const handleDelete = async (id: string) => {
-    setLists((prev) => prev.filter((l) => l.id !== id));
+    try {
+      await api.deleteList(id);
+      setLists((prev) => prev.filter((l) => l.id !== id));
+    } catch (e) {
+      setError(String(e));
+    }
   };
 
   if (loading) {

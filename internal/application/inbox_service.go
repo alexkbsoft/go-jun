@@ -131,6 +131,12 @@ func (s *InboxService) processSingleEvent(ctx context.Context, event domain.Inbo
 			return err
 		}
 
+	case "list.deleted":
+		// Список удалён — уведомим пользователя
+		if err := s.notifyMax(ctx, "список удалён"); err != nil {
+			slog.Error("notify max", slog.String("error", err.Error()))
+		}
+
 	default:
 		slog.Warn("unknown event type", slog.String("type", raw.Type))
 	}

@@ -38,6 +38,14 @@ func (s *Service) GetLists(ctx context.Context) ([]domain.List, error) {
 	return s.repo.GetLists(ctx)
 }
 
+func (s *Service) DeleteList(ctx context.Context, listID string) (domain.List, error) {
+	list, err := s.repo.DeleteListWithOutbox(ctx, listID)
+	if err != nil {
+		return domain.List{}, err
+	}
+	return list, nil
+}
+
 func (s *Service) CreateTask(ctx context.Context, listId string, title string, done bool) (domain.Task, error) {
 	task := domain.Task{
 		ID:        uuid.New().String(),

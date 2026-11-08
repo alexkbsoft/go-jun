@@ -128,3 +128,27 @@ func HandleGetLists(uc application.TaskUseCases) http.HandlerFunc {
 		}
 	}
 }
+
+func HandleDeleteList(uc application.TaskUseCases) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodDelete {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		listID := req.PathValue("list_id")
+
+		_, err := uc.DeleteList(req.Context(), listID)
+		if err != nil {
+			if err == domain.ErrNotFound {
+				http.Error(w, "List not found", http.StatusNotFound)
+			} else {
+				http.Error(w, "Failed to delete list", http.StatusInternalServerError)
+				slog.Error("Failed to delete list:", slog.String("error", err.Error()))
+			}
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}
+}

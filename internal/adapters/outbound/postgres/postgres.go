@@ -74,6 +74,12 @@ type taskEvent struct {
 	OccurredAt time.Time `json:"occurredAt"`
 }
 
+type listDeletedEvent struct {
+	Type       string    `json:"type"`
+	ListID     string    `json:"listId"`
+	OccurredAt time.Time `json:"occurredAt"`
+}
+
 func (p *Postgres) CreateTaskWithOutbox(ctx context.Context, t domain.Task) error {
 	payload, err := json.Marshal(taskEvent{
 		Type:       string(domain.TaskCreated),
@@ -171,6 +177,37 @@ func (p *Postgres) DeleteTaskWithOutbox(ctx context.Context, taskID string) (dom
 	return task, nil
 }
 
+func (p *Postgres) DeleteListWithOutbox(ctx context.Context, listID string) (domain.List, error) {
+	tx, err := p.db.Begin(ctx)
+	if err != nil {
+		return domain.List{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	list, err := p.deleteList(ctx, tx, listID)
+	if err != nil {
+		return domain.List{}, err
+	}
+
+	payload, err := json.Marshal(listDeletedEvent{
+		Type:       string(domain.ListDeleted),
+		ListID:     list.ID,
+		OccurredAt: time.Now(),
+	})
+	if err != nil {
+		return domain.List{}, err
+	}
+
+	if err := p.insertOutbox(ctx, tx, list.ID, string(domain.ListDeleted), payload); err != nil {
+		return domain.List{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return domain.List{}, err
+	}
+	return list, nil
+}
+
 func (p *Postgres) GetTasks(ctx context.Context, listID string) ([]domain.Task, error) {
 	cmd := `SELECT id, list_id, title, done, created_at 
 				FROM tasks 
@@ -234,6 +271,16 @@ func (p *Postgres) deleteTask(ctx context.Context, tx pgx.Tx, taskID string) (do
 		return domain.Task{}, mapErr(err)
 	}
 	return t, nil
+}
+
+func (p *Postgres) deleteList(ctx context.Context, tx pgx.Tx, listID string) (domain.List, error) {
+	cmd := `DELETE FROM lists WHERE id = $1 RETURNING id, name`
+	var l domain.List
+	err := tx.QueryRow(ctx, cmd, listID).Scan(&l.ID, &l.Name)
+	if err != nil {
+		return domain.List{}, mapErr(err)
+	}
+	return l, nil
 }
 
 func (p *Postgres) insertOutbox(ctx context.Context, tx pgx.Tx, aggregateID, eventType string, payload []byte) error {

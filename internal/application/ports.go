@@ -11,6 +11,7 @@ type TaskUseCases interface {
 	CreateList(ctx context.Context, name string) (domain.List, error)
 	GetList(ctx context.Context, listID string) (domain.List, error)
 	GetLists(ctx context.Context) ([]domain.List, error)
+	DeleteList(ctx context.Context, listID string) (domain.List, error)
 	CreateTask(ctx context.Context, listID, title string, done bool) (domain.Task, error)
 	GetTasks(ctx context.Context, listID string) ([]domain.Task, error)
 	UpdateTask(ctx context.Context, id string, p domain.TaskPatch) (domain.Task, error)
@@ -22,6 +23,7 @@ type Repository interface {
 	CreateList(ctx context.Context, l domain.List) error
 	GetList(ctx context.Context, listID string) (domain.List, error)
 	GetLists(ctx context.Context) ([]domain.List, error)
+	DeleteListWithOutbox(ctx context.Context, listID string) (domain.List, error)
 	GetTasks(ctx context.Context, listID string) ([]domain.Task, error)
 	CreateTaskWithOutbox(ctx context.Context, task domain.Task) error
 	UpdateTaskWithOutbox(ctx context.Context, id string, p domain.TaskPatch) (domain.Task, error)

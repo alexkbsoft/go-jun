@@ -44,4 +44,8 @@ export const api = {
   async deleteTask(taskId: string): Promise<void> {
     await request(`/v1/tasks/${taskId}`, { method: "DELETE" });
   },
+
+  async deleteList(listId: string): Promise<void> {
+    await request(`/v1/lists/${listId}`, { method: "DELETE" });
+  },
 };

@@ -8,6 +8,7 @@ const (
 	TaskCreated EventType = "task.created"
 	TaskUpdated EventType = "task.updated"
 	TaskDeleted EventType = "task.deleted"
+	ListDeleted EventType = "list.deleted"
 )
 
 type Event struct {
