@@ -96,6 +96,7 @@ func (c *Client) SendText(text string) error {
 		return fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", c.botToken)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
